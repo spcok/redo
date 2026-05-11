@@ -3,10 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { db } from '../../lib/db';
 import { useDashboardStore } from '../../store/dashboardStore';
+import { AddAnimalModal } from '../animals/components/AddAnimalModal';
 import { 
   Heart, Scale, Drumstick, ArrowUpDown, Loader2, ClipboardCheck, 
   CheckCircle, Lock, Unlock, ChevronUp, ChevronDown, Calendar, 
-  AlertTriangle, Search 
+  AlertTriangle, Search, Plus 
 } from 'lucide-react';
 
 interface DBAnimal {
@@ -53,14 +54,13 @@ export function Dashboard() {
   const [isBentoMinimized, setIsBentoMinimized] = useState(false);
   const [isOrderLocked, setIsOrderLocked] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   const dateStr = viewingDate.toISOString().split('T')[0];
   const displayDate = useMemo(() => viewingDate.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), [viewingDate]);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['dashboardData', dateStr],
-    // V3 ARCHITECTURE: Rapid local polling ensures the UI instantly reacts 
-    // to background sync updates from the Electric stream without blocking the main thread.
     refetchInterval: 1500, 
     queryFn: async () => {
       await db.waitReady;
@@ -83,7 +83,6 @@ export function Dashboard() {
     }
   });
 
-  // V3 PERFORMANCE: Memoized heavy array processing. Will NOT re-run on search typing.
   const processedAnimals = useMemo<EnhancedAnimal[]>(() => {
     if (!data) return [];
     return data.animals.map((a) => {
@@ -109,7 +108,6 @@ export function Dashboard() {
     });
   }, [data]);
 
-  // V3 PERFORMANCE: Separated filter logic to allow instantaneous search updates
   const filteredAnimals = useMemo(() => {
     let result = processedAnimals.filter(a => {
       if (activeTab === 'ARCHIVED') return a.is_deleted === true;
@@ -170,10 +168,15 @@ export function Dashboard() {
             {displayDate} <span className="text-slate-300">|</span> 🌤️ 14°C Partly Cloudy
           </p>
         </div>
+        <button 
+          onClick={() => setIsAddModalOpen(true)}
+          className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-sm uppercase tracking-widest shadow-lg shadow-emerald-600/20 transition-all shrink-0"
+        >
+          <Plus size={18} /> Add Animal
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-          {/* V3 PERFORMANCE: Removed 'transition-all duration-300' to stop layout thrashing */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col">
               <div className="flex items-center justify-between cursor-pointer" onClick={() => setIsBentoMinimized(!isBentoMinimized)}>
                   <div className="flex items-center gap-2">
@@ -290,7 +293,7 @@ export function Dashboard() {
               <tr 
                 key={animal.id} 
                 onClick={() => navigate({ to: '/animals/$animalId', params: { animalId: animal.id } })}
-                className="group hover:bg-slate-50/80 cursor-pointer" // V3 PERFORMANCE: Removed 'transition-colors' on high-volume table rows
+                className="group hover:bg-slate-50/80 cursor-pointer"
               >
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
@@ -349,6 +352,7 @@ export function Dashboard() {
         </table>
       </div>
 
+      <AddAnimalModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} />
     </div>
   );
 }

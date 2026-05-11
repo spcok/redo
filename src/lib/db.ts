@@ -1,12 +1,16 @@
 import { PGlite } from '@electric-sql/pglite';
+import { electricSync } from '@electric-sql/pglite-sync';
 
 class DatabaseService {
   public pg: PGlite;
   public waitReady: Promise<void>;
 
   constructor() {
-    // Initialize the offline-first PGlite instance using IndexedDB for persistence
-    this.pg = new PGlite('idb://koa-local-db');
+    this.pg = new PGlite('idb://koa-local-db', {
+      extensions: {
+        sync: electricSync()
+      }
+    });
     this.waitReady = this.initDb();
   }
 
@@ -15,8 +19,7 @@ class DatabaseService {
       await this.pg.waitReady;
 
       // =====================================================================
-      // 1. V3 MASTER SCHEMA
-      // Null-Law applied. Supabase 'uid()' defaults explicitly stripped.
+      // 1. V3 MASTER SCHEMA (Chunked to prevent clipboard truncation)
       // =====================================================================
 
       await this.pg.exec(`
@@ -76,7 +79,9 @@ class DatabaseService {
           updated_at timestamp with time zone NOT NULL DEFAULT now(),
           sign_content text
         );
-        
+      `);
+
+      await this.pg.exec(`
         CREATE TABLE IF NOT EXISTS clinical_attachments (
           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           record_id uuid NOT NULL,
@@ -108,7 +113,9 @@ class DatabaseService {
           created_at timestamp with time zone NOT NULL DEFAULT now(),
           updated_at timestamp with time zone NOT NULL DEFAULT now()
         );
-        
+      `);
+
+      await this.pg.exec(`
         CREATE TABLE IF NOT EXISTS clinical_schedule (
           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           animal_id uuid NOT NULL,
@@ -143,7 +150,9 @@ class DatabaseService {
           created_at timestamp with time zone NOT NULL DEFAULT now(),
           updated_at timestamp with time zone NOT NULL DEFAULT now()
         );
-        
+      `);
+
+      await this.pg.exec(`
         CREATE TABLE IF NOT EXISTS daily_rounds (
           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           animal_id uuid NOT NULL,
@@ -182,7 +191,9 @@ class DatabaseService {
           created_at timestamp with time zone NOT NULL DEFAULT now(),
           updated_at timestamp with time zone NOT NULL DEFAULT now()
         );
-        
+      `);
+
+      await this.pg.exec(`
         CREATE TABLE IF NOT EXISTS fire_drill_logs (
           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           drill_date timestamp with time zone NOT NULL DEFAULT now(),
@@ -223,7 +234,9 @@ class DatabaseService {
           created_at timestamp with time zone NOT NULL DEFAULT now(),
           updated_at timestamp with time zone NOT NULL DEFAULT now()
         );
-        
+      `);
+
+      await this.pg.exec(`
         CREATE TABLE IF NOT EXISTS isolation_logs (
           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           animal_id uuid NOT NULL,
@@ -258,7 +271,9 @@ class DatabaseService {
           created_at timestamp with time zone NOT NULL DEFAULT now(),
           updated_at timestamp with time zone NOT NULL DEFAULT now()
         );
-        
+      `);
+
+      await this.pg.exec(`
         CREATE TABLE IF NOT EXISTS medication_logs (
           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           schedule_id uuid NOT NULL,
@@ -285,7 +300,9 @@ class DatabaseService {
           created_at timestamp with time zone NOT NULL DEFAULT now(),
           updated_at timestamp with time zone NOT NULL DEFAULT now()
         );
-        
+      `);
+
+      await this.pg.exec(`
         CREATE TABLE IF NOT EXISTS role_permissions (
           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           role text NOT NULL,
@@ -315,7 +332,9 @@ class DatabaseService {
           created_at timestamp with time zone NOT NULL DEFAULT now(),
           updated_at timestamp with time zone NOT NULL DEFAULT now()
         );
-        
+      `);
+
+      await this.pg.exec(`
         CREATE TABLE IF NOT EXISTS tasks (
           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           title text NOT NULL,
@@ -361,51 +380,58 @@ class DatabaseService {
 
       // =====================================================================
       // 2. V3 PERFORMANCE UPGRADE: Postgres Indexing
-      // These indexes prevent sequential full-table scans, drastically 
-      // accelerating joins and heavy filtering logic in the UI views.
       // =====================================================================
-
       await this.pg.exec(`
-        -- Primary Filtering Indexes
         CREATE INDEX IF NOT EXISTS idx_animals_deleted ON animals(is_deleted);
         CREATE INDEX IF NOT EXISTS idx_animals_category ON animals(category);
         CREATE INDEX IF NOT EXISTS idx_animals_name ON animals(name);
-        
-        -- High-Volume Log Indexes
         CREATE INDEX IF NOT EXISTS idx_daily_logs_animal ON daily_logs(animal_id);
         CREATE INDEX IF NOT EXISTS idx_daily_logs_date ON daily_logs(log_date);
-        
-        -- Routine Operation Indexes
         CREATE INDEX IF NOT EXISTS idx_daily_rounds_date_shift ON daily_rounds(date, shift);
         CREATE INDEX IF NOT EXISTS idx_feeding_schedules_animal ON feeding_schedules(animal_id);
         CREATE INDEX IF NOT EXISTS idx_feeding_schedules_date ON feeding_schedules(next_feed_date);
-        
-        -- Medical Hub Indexes
         CREATE INDEX IF NOT EXISTS idx_clinical_schedule_animal ON clinical_schedule(animal_id);
         CREATE INDEX IF NOT EXISTS idx_clinical_schedule_status ON clinical_schedule(status);
         CREATE INDEX IF NOT EXISTS idx_clinical_records_animal ON clinical_records(animal_id);
         CREATE INDEX IF NOT EXISTS idx_medication_logs_animal ON medication_logs(animal_id);
         CREATE INDEX IF NOT EXISTS idx_isolation_logs_animal ON isolation_logs(animal_id);
-        
-        -- Operational Indexes
         CREATE INDEX IF NOT EXISTS idx_timesheets_user_date ON timesheets(user_id, shift_date);
         CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
       `);
 
       console.log('[DB] Local PGlite initialized with complete V3 Schema and Performance Indexes.');
+
+      // =====================================================================
+      // 3. START THE ELECTRIC NEXT BACKGROUND STREAM
+      // =====================================================================
+      try {
+        // @ts-ignore - The sync property is injected by the extension
+        await this.pg.sync.syncShapeToTable({
+          shape: {
+            url: 'https://xwtau3dj2gas.share.zrok.io/v1/shape',
+            params: {
+              table: 'animals'
+            }
+          },
+          table: 'animals',
+          primaryKey: ['id']
+        });
+        console.log("[Vault] Native Electric Sync connected for 'animals' table.");
+      } catch (syncErr) {
+        console.error("[Vault] Electric Sync Error:", syncErr);
+      }
+
     } catch (error) {
       console.error('[DB] Failed to initialize local vault:', error);
       throw error;
     }
   }
 
-  // Centralized Database Access Wrapper
   async query(text: string, params?: any[]) {
     await this.waitReady;
     return this.pg.query(text, params);
   }
   
-  // Wrapper for executing raw queries without params (like migrations)
   async exec(text: string) {
     await this.waitReady;
     return this.pg.exec(text);

@@ -8,21 +8,7 @@ import { supabase } from '../lib/supabase';
  * every "NOT NULL" constraint in your V3 PGlite architecture.
  */
 const SCHEMA_CONFIG = [
-  { 
-    name: 'animals', 
-    cols: [
-      'id', 'entity_type', 'name', 'species', 'category', 'census_count', 
-      'weight_unit', 'red_list_status', 'display_order', 'is_deleted'
-    ], 
-    defaults: { 
-      entity_type: 'ANIMAL', 
-      census_count: 0, 
-      weight_unit: 'g', 
-      red_list_status: 'NE',
-      display_order: 0,
-      is_deleted: false 
-    } 
-  },
+
   { 
     name: 'clinical_records', 
     cols: ['id', 'animal_id', 'record_type', 'record_date', 'soap_assessment', 'is_deleted'], 

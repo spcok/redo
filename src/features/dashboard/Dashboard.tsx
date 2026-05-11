@@ -59,6 +59,9 @@ export function Dashboard() {
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['dashboardData', dateStr],
+    // V3 ARCHITECTURE: Rapid local polling ensures the UI instantly reacts 
+    // to background sync updates from the Electric stream without blocking the main thread.
+    refetchInterval: 1500, 
     queryFn: async () => {
       await db.waitReady;
       const animalsRes = await db.query("SELECT * FROM animals ORDER BY name ASC");

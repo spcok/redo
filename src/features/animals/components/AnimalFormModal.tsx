@@ -11,8 +11,8 @@ const RED_LIST_STATUSES = ['NE', 'DD', 'LC', 'NT', 'VU', 'EN', 'CR', 'EW', 'EX']
 const HAZARD_RATINGS = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 const WEIGHT_UNITS = [
   { label: 'Grams (g)', value: 'g' },
-  { label: 'Ounces (oz)', value: 'oz' },
-  { label: 'Pounds/Ounces (lb/oz)', value: 'lb' }
+  { label: 'Ounces/8ths (oz)', value: 'oz' },
+  { label: 'Pounds/Ounces/8ths (lb)', value: 'lb' }
 ];
 
 interface AnimalFormModalProps {
@@ -61,6 +61,11 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
       target_night_temp_c: initialData?.target_night_temp_c || '',
       target_humidity_min_percent: initialData?.target_humidity_min_percent || '',
       target_humidity_max_percent: initialData?.target_humidity_max_percent || '',
+      misting_frequency: initialData?.misting_frequency || '',
+      acquisition_date: initialData?.acquisition_date || '',
+      origin: initialData?.origin || '',
+      is_boarding: initialData?.is_boarding || false,
+      is_quarantine: initialData?.is_quarantine || false,
     },
     onSubmit: async ({ value }) => {
       const parseStr = (v: any) => v === '' ? null : String(v);
@@ -96,6 +101,7 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
 
   if (!isOpen) return null;
 
+  // Enforcing text-slate-900 for absolute contrast readability
   const inputClass = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-400";
   const labelClass = "block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1";
 
@@ -142,6 +148,9 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
                 )} />
                 <form.Field name="location" children={(f) => (
                   <div><label className={labelClass}>Enclosure / Location</label><input value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} placeholder="e.g. Block A, Aviary 4" /></div>
+                )} />
+                <form.Field name="origin" children={(f) => (
+                  <div><label className={labelClass}>Origin / Source</label><input value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
                 )} />
               </div>
             )}
@@ -196,6 +205,7 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
               </div>
             )}
 
+            {/* INTEGRATED ISOLATED UPLOADER COMPONENTS */}
             {activeTab === 'media' && (
               <div className="space-y-6">
                 <form.Field name="image_url" children={(f) => (

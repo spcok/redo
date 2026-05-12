@@ -58,7 +58,7 @@ export function OfflineImageUploader({ label, value, onChange, icon }: OfflineIm
         };
 
         img.onerror = () => {
-          console.error("[Uploader] Image Decode Error. File might be unsupported (e.g., HEIC).");
+          console.error("[Uploader] Image Decode Error. File might be unsupported.");
           setErrorMsg("Unsupported image format. Please use JPG or PNG.");
           setIsProcessing(false);
         };

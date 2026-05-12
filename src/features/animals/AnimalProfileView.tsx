@@ -14,12 +14,12 @@ import { MedicalTab } from './components/MedicalTab';
 import { SignGenerator } from './components/SignGenerator';
 import { AnimalFormModal } from './components/AnimalFormModal';
 
-// 1. STRICT ZOD SCHEMA (Electric HTTP Streams send Postgres numerics as Strings!)
+// 1. FORGIVING ZOD SCHEMA (Handles legacy nulls & string numerics safely)
 const FullAnimalSchema = z.object({
     id: z.string().uuid(),
-    entity_type: z.string(),
+    entity_type: z.string().nullable().transform(v => v || 'individual'),
     parent_mob_id: z.string().nullable(),
-    census_count: z.union([z.number(), z.string()]), 
+    census_count: z.union([z.number(), z.string()]).nullable().transform(v => Number(v) || 1),
     name: z.string().nullable(),
     species: z.string().nullable(),
     latin_name: z.string().nullable(),
@@ -28,22 +28,22 @@ const FullAnimalSchema = z.object({
     image_url: z.string().nullable(),
     distribution_map_url: z.string().nullable(),
     hazard_rating: z.string().nullable(),
-    is_venomous: z.boolean(),
-    weight_unit: z.string(),
+    is_venomous: z.boolean().nullable().transform(v => !!v),
+    weight_unit: z.string().nullable().transform(v => v || 'g'),
     flying_weight_g: z.union([z.number(), z.string()]).nullable(), 
     winter_weight_g: z.union([z.number(), z.string()]).nullable(),
     average_target_weight: z.union([z.number(), z.string()]).nullable(),
     date_of_birth: z.string().nullable(),
-    is_dob_unknown: z.boolean(),
+    is_dob_unknown: z.boolean().nullable().transform(v => !!v),
     gender: z.string().nullable(),
     microchip_id: z.string().nullable(),
     ring_number: z.string().nullable(),
-    has_no_id: z.boolean(),
+    has_no_id: z.boolean().nullable().transform(v => !!v),
     red_list_status: z.string().nullable(),
     description: z.string().nullable(),
     special_requirements: z.string().nullable(),
     critical_husbandry_notes: z.string().nullable(),
-    ambient_temp_only: z.boolean(),
+    ambient_temp_only: z.boolean().nullable().transform(v => !!v),
     target_day_temp_c: z.union([z.number(), z.string()]).nullable(),
     target_night_temp_c: z.union([z.number(), z.string()]).nullable(),
     water_tipping_temp: z.union([z.number(), z.string()]).nullable(),
@@ -54,16 +54,16 @@ const FullAnimalSchema = z.object({
     acquisition_type: z.string().nullable(),
     origin: z.string().nullable(),
     origin_location: z.string().nullable(),
-    lineage_unknown: z.boolean(),
+    lineage_unknown: z.boolean().nullable().transform(v => !!v),
     sire_id: z.string().nullable(),
     dam_id: z.string().nullable(),
-    is_boarding: z.boolean(),
-    is_quarantine: z.boolean(),
-    display_order: z.union([z.number(), z.string()]),
-    archived: z.boolean(),
+    is_boarding: z.boolean().nullable().transform(v => !!v),
+    is_quarantine: z.boolean().nullable().transform(v => !!v),
+    display_order: z.union([z.number(), z.string()]).nullable().transform(v => Number(v) || 0),
+    archived: z.boolean().nullable().transform(v => !!v),
     archive_reason: z.string().nullable(),
     archive_type: z.string().nullable(),
-    is_deleted: z.boolean(),
+    is_deleted: z.boolean().nullable().transform(v => !!v),
 });
 
 export type ProcessedAnimal = z.infer<typeof FullAnimalSchema>;
@@ -132,8 +132,13 @@ export function AnimalProfileView({ animalId, onBack }: AnimalProfileViewProps) 
                     <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200 mb-6 flex flex-col md:flex-row gap-6 md:items-center relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full blur-3xl -mr-20 -mt-20 opacity-60"></div>
                         
+                        {/* DYNAMIC PROFILE IMAGE RENDERER */}
                         <div className="w-24 h-24 md:w-32 md:h-32 bg-slate-100 rounded-2xl border-4 border-white shadow-lg overflow-hidden shrink-0 z-10 flex items-center justify-center">
-                            <span className="text-5xl font-black text-slate-300 uppercase">{animal.name?.charAt(0) || '?'}</span>
+                            {animal.image_url ? (
+                                <img src={animal.image_url} alt={animal.name || 'Profile'} className="w-full h-full object-cover" />
+                            ) : (
+                                <span className="text-5xl font-black text-slate-300 uppercase">{animal.name?.charAt(0) || '?'}</span>
+                            )}
                         </div>
                         
                         <div className="flex-1 z-10">

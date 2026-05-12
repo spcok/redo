@@ -46,11 +46,9 @@ export function OfflineImageUploader({ label, value, onChange, icon }: OfflineIm
 
             ctx.drawImage(img, 0, 0, width, height);
             
-            // Output as high-compression JPEG
             const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
             onChange(dataUrl);
           } catch (err: any) {
-            console.error("[Uploader] Canvas Error:", err);
             setErrorMsg(err.message || "Canvas compression failed.");
           } finally {
             setIsProcessing(false);
@@ -58,7 +56,6 @@ export function OfflineImageUploader({ label, value, onChange, icon }: OfflineIm
         };
 
         img.onerror = () => {
-          console.error("[Uploader] Image Decode Error. File might be unsupported.");
           setErrorMsg("Unsupported image format. Please use JPG or PNG.");
           setIsProcessing(false);
         };
@@ -67,14 +64,12 @@ export function OfflineImageUploader({ label, value, onChange, icon }: OfflineIm
       };
 
       reader.onerror = () => {
-        console.error("[Uploader] FileReader Error:", reader.error);
         setErrorMsg("Operating System blocked file read access.");
         setIsProcessing(false);
       };
 
       reader.readAsDataURL(file);
     } catch (err: any) {
-      console.error("[Uploader] Unexpected Exception:", err);
       setErrorMsg("An unexpected critical error occurred.");
       setIsProcessing(false);
     }
@@ -82,9 +77,7 @@ export function OfflineImageUploader({ label, value, onChange, icon }: OfflineIm
 
   const handleClear = () => {
     onChange('');
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   return (
@@ -115,9 +108,7 @@ export function OfflineImageUploader({ label, value, onChange, icon }: OfflineIm
             ref={fileInputRef} 
             className="hidden" 
             onChange={(e) => {
-              if (e.target.files && e.target.files[0]) {
-                processImage(e.target.files[0]);
-              }
+              if (e.target.files && e.target.files[0]) processImage(e.target.files[0]);
             }} 
           />
           

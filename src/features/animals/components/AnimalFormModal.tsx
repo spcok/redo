@@ -4,7 +4,7 @@ import { zodValidator } from '@tanstack/zod-form-adapter';
 import { useAuthStore } from '../../../store/authStore';
 import { useAddAnimal, useUpdateAnimal } from '../api/mutations';
 import { OfflineImageUploader } from './OfflineImageUploader';
-import { X, Save, Loader2, Shield, Image as ImageIcon, Map as MapIcon } from 'lucide-react';
+import { X, Save, Loader2, Shield, Skull, Image as ImageIcon, Map as MapIcon } from 'lucide-react';
 
 const CATEGORIES = ['OWLS', 'RAPTORS', 'MAMMALS', 'EXOTICS'];
 const RED_LIST_STATUSES = ['NE', 'DD', 'LC', 'NT', 'VU', 'EN', 'CR', 'EW', 'EX'];
@@ -61,6 +61,11 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
       target_night_temp_c: initialData?.target_night_temp_c || '',
       target_humidity_min_percent: initialData?.target_humidity_min_percent || '',
       target_humidity_max_percent: initialData?.target_humidity_max_percent || '',
+      misting_frequency: initialData?.misting_frequency || '',
+      acquisition_date: initialData?.acquisition_date || '',
+      origin: initialData?.origin || '',
+      is_boarding: initialData?.is_boarding || false,
+      is_quarantine: initialData?.is_quarantine || false,
     },
     onSubmit: async ({ value }) => {
       const parseStr = (v: any) => v === '' ? null : String(v);
@@ -74,6 +79,8 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
         latin_name: parseStr(value.latin_name),
         category: parseStr(value.category),
         location: parseStr(value.location),
+        origin: parseStr(value.origin),
+        acquisition_date: parseStr(value.acquisition_date),
         image_url: parseStr(value.image_url),
         distribution_map_url: parseStr(value.distribution_map_url),
         hazard_rating: parseStr(value.hazard_rating),
@@ -82,6 +89,12 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
         target_night_temp_c: parseNum(value.target_night_temp_c),
         target_humidity_min_percent: parseNum(value.target_humidity_min_percent),
         target_humidity_max_percent: parseNum(value.target_humidity_max_percent),
+        // Guaranteed boolean fallback casting
+        is_venomous: !!value.is_venomous,
+        is_dob_unknown: !!value.is_dob_unknown,
+        is_boarding: !!value.is_boarding,
+        is_quarantine: !!value.is_quarantine,
+        ambient_temp_only: !!value.ambient_temp_only,
         currentUserId
       };
 
@@ -143,6 +156,25 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
                 <form.Field name="location" children={(f) => (
                   <div><label className={labelClass}>Enclosure / Location</label><input value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} placeholder="e.g. Block A, Aviary 4" /></div>
                 )} />
+                <form.Field name="origin" children={(f) => (
+                  <div><label className={labelClass}>Origin / Source</label><input value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
+                )} />
+                
+                <form.Field name="entity_type" children={(f) => (
+                  <div>
+                    <label className={labelClass}>Entity Type</label>
+                    <select disabled={isEditing} value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass}>
+                      <option value="individual">Individual</option>
+                      <option value="group">Group / Mob</option>
+                    </select>
+                  </div>
+                )} />
+                <form.Field name="census_count" children={(f) => (
+                  <div><label className={labelClass}>Census Count</label><input type="number" min="1" value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(Number(e.target.value))} className={inputClass} /></div>
+                )} />
+                <form.Field name="acquisition_date" children={(f) => (
+                  <div className="md:col-span-2"><label className={labelClass}>Acquisition Date</label><input type="date" value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
+                )} />
               </div>
             )}
 
@@ -156,7 +188,7 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
                     <div className="flex-1"><label className={labelClass}>Date of Birth</label><input type="date" disabled={form.getFieldValue('is_dob_unknown')} value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
                   )} />
                   <form.Field name="is_dob_unknown" children={(f) => (
-                    <div className="flex items-center gap-2 pt-5"><input type="checkbox" checked={f.state.value} onChange={e => f.handleChange(e.target.checked)} /><span className="text-[10px] font-bold text-slate-500 uppercase">Unknown</span></div>
+                    <div className="flex items-center gap-2 pt-5"><input type="checkbox" checked={!!f.state.value} onChange={e => f.handleChange(e.target.checked)} /><span className="text-[10px] font-bold text-slate-500 uppercase">Unknown</span></div>
                   )} />
                 </div>
                 <form.Field name="microchip_id" children={(f) => (
@@ -171,6 +203,19 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
                 <form.Field name="hazard_rating" children={(f) => (
                   <div><label className={labelClass}>Hazard Rating</label><select value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass}>{HAZARD_RATINGS.map(h => <option key={h} value={h}>{h}</option>)}</select></div>
                 )} />
+                
+                {/* Restored Checkboxes! */}
+                <div className="col-span-1 md:col-span-2 flex flex-wrap gap-4 mt-2">
+                  <form.Field name="is_venomous" children={(f) => (
+                    <label className="flex items-center gap-2 cursor-pointer bg-red-50 px-4 py-2 rounded-xl border border-red-200 text-red-700 font-bold text-[10px] uppercase tracking-widest"><input type="checkbox" checked={!!f.state.value} onChange={e => f.handleChange(e.target.checked)} /><Skull size={14}/> Venomous</label>
+                  )} />
+                  <form.Field name="is_quarantine" children={(f) => (
+                    <label className="flex items-center gap-2 cursor-pointer bg-orange-50 px-4 py-2 rounded-xl border border-orange-200 text-orange-700 font-bold text-[10px] uppercase tracking-widest"><input type="checkbox" checked={!!f.state.value} onChange={e => f.handleChange(e.target.checked)} /> In Quarantine</label>
+                  )} />
+                  <form.Field name="is_boarding" children={(f) => (
+                    <label className="flex items-center gap-2 cursor-pointer bg-blue-50 px-4 py-2 rounded-xl border border-blue-200 text-blue-700 font-bold text-[10px] uppercase tracking-widest"><input type="checkbox" checked={!!f.state.value} onChange={e => f.handleChange(e.target.checked)} /> Boarding</label>
+                  )} />
+                </div>
               </div>
             )}
 
@@ -193,26 +238,25 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
                 <form.Field name="target_night_temp_c" children={(f) => (
                   <div><label className={labelClass}>Target Night Temp (°C)</label><input type="number" step="0.1" value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
                 )} />
+                <form.Field name="target_humidity_min_percent" children={(f) => (
+                  <div><label className={labelClass}>Min Humidity (%)</label><input type="number" value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
+                )} />
+                <form.Field name="target_humidity_max_percent" children={(f) => (
+                  <div><label className={labelClass}>Max Humidity (%)</label><input type="number" value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
+                )} />
+                <form.Field name="ambient_temp_only" children={(f) => (
+                  <div className="col-span-1 md:col-span-2 flex items-center gap-2 pt-2"><input type="checkbox" checked={!!f.state.value} onChange={e => f.handleChange(e.target.checked)} /><span className="text-xs font-bold text-slate-700">Ambient Temperature Only (No active heating)</span></div>
+                )} />
               </div>
             )}
 
             {activeTab === 'media' && (
               <div className="space-y-6">
                 <form.Field name="image_url" children={(f) => (
-                  <OfflineImageUploader 
-                    label="Profile Photo" 
-                    value={f.state.value} 
-                    onChange={f.handleChange} 
-                    icon={<ImageIcon size={32} />} 
-                  />
+                  <OfflineImageUploader label="Profile Photo" value={f.state.value} onChange={f.handleChange} icon={<ImageIcon size={32} />} />
                 )} />
                 <form.Field name="distribution_map_url" children={(f) => (
-                  <OfflineImageUploader 
-                    label="Distribution Map" 
-                    value={f.state.value} 
-                    onChange={f.handleChange} 
-                    icon={<MapIcon size={32} />} 
-                  />
+                  <OfflineImageUploader label="Distribution Map" value={f.state.value} onChange={f.handleChange} icon={<MapIcon size={32} />} />
                 )} />
               </div>
             )}

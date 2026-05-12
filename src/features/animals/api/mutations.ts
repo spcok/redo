@@ -63,11 +63,11 @@ export const useAddAnimal = () => {
         )`,
         [
           val.animalId, val.entity_type, val.parent_mob_id || null, val.census_count, val.name || null, val.species || null, val.latin_name || null, val.category || null, val.location || null,
-          val.hazard_rating || null, val.is_venomous, val.weight_unit, val.average_target_weight || null, val.date_of_birth || null, val.is_dob_unknown,
+          val.hazard_rating || null, val.is_venomous ?? false, val.weight_unit, val.average_target_weight || null, val.date_of_birth || null, val.is_dob_unknown ?? false,
           val.gender || null, val.microchip_id || null, val.ring_number || null, val.red_list_status, val.description || null, val.special_requirements || null,
-          val.critical_husbandry_notes || null, val.ambient_temp_only, val.target_day_temp_c || null, val.target_night_temp_c || null,
+          val.critical_husbandry_notes || null, val.ambient_temp_only ?? false, val.target_day_temp_c || null, val.target_night_temp_c || null,
           val.target_humidity_min_percent || null, val.target_humidity_max_percent || null, val.misting_frequency || null, val.acquisition_date || null,
-          val.origin || null, val.is_boarding, val.is_quarantine, val.currentUserId, val.image_url || null, val.distribution_map_url || null
+          val.origin || null, val.is_boarding ?? false, val.is_quarantine ?? false, val.currentUserId, val.image_url || null, val.distribution_map_url || null
         ]
       );
     },
@@ -81,6 +81,12 @@ export const useAddAnimal = () => {
         archived: false,
         archived_at: new Date().toISOString(),
         is_deleted: false,
+        // Guarantee boolean safety to Supabase
+        is_venomous: val.is_venomous ?? false,
+        is_dob_unknown: val.is_dob_unknown ?? false,
+        ambient_temp_only: val.ambient_temp_only ?? false,
+        is_boarding: val.is_boarding ?? false,
+        is_quarantine: val.is_quarantine ?? false,
         created_by: currentUserId, 
         modified_by: currentUserId
       });
@@ -88,7 +94,7 @@ export const useAddAnimal = () => {
     },
     onError: (error) => {
       console.error("🚨 [API CRASH] Mutation Failed! Reason:", error.message);
-      alert(`Database Sync Error: ${error.message}\n\nPlease check your Developer Console. Ensure 'image_url' and 'distribution_map_url' columns exist in Supabase.`);
+      alert(`Database Sync Error: ${error.message}\n\nPlease check your Developer Console.`);
     },
     onSuccess: () => {
       console.log(`✅ [API] Sync Successful`);
@@ -116,11 +122,11 @@ export const useUpdateAnimal = () => {
          WHERE id = $1`,
          [
             val.animalId, val.entity_type, val.parent_mob_id || null, val.census_count, val.name || null, val.species || null, val.latin_name || null, val.category || null, val.location || null,
-            val.hazard_rating || null, val.is_venomous, val.weight_unit, val.average_target_weight || null, val.date_of_birth || null, val.is_dob_unknown,
+            val.hazard_rating || null, val.is_venomous ?? false, val.weight_unit, val.average_target_weight || null, val.date_of_birth || null, val.is_dob_unknown ?? false,
             val.gender || null, val.microchip_id || null, val.ring_number || null, val.red_list_status, val.description || null, val.special_requirements || null,
-            val.critical_husbandry_notes || null, val.ambient_temp_only, val.target_day_temp_c || null, val.target_night_temp_c || null,
+            val.critical_husbandry_notes || null, val.ambient_temp_only ?? false, val.target_day_temp_c || null, val.target_night_temp_c || null,
             val.target_humidity_min_percent || null, val.target_humidity_max_percent || null, val.misting_frequency || null, val.acquisition_date || null,
-            val.origin || null, val.is_boarding, val.is_quarantine, val.currentUserId, val.image_url || null, val.distribution_map_url || null
+            val.origin || null, val.is_boarding ?? false, val.is_quarantine ?? false, val.currentUserId, val.image_url || null, val.distribution_map_url || null
           ]
       );
     },
@@ -128,13 +134,20 @@ export const useUpdateAnimal = () => {
       console.log(`☁️ [API] Attempting Supabase Update...`);
       const { currentUserId, animalId, ...supabasePayload } = val;
       const { error } = await supabase.from('animals').update({
-        ...supabasePayload, modified_by: currentUserId, updated_at: new Date().toISOString()
+        ...supabasePayload, 
+        is_venomous: val.is_venomous ?? false,
+        is_dob_unknown: val.is_dob_unknown ?? false,
+        ambient_temp_only: val.ambient_temp_only ?? false,
+        is_boarding: val.is_boarding ?? false,
+        is_quarantine: val.is_quarantine ?? false,
+        modified_by: currentUserId, 
+        updated_at: new Date().toISOString()
       }).eq('id', animalId);
       if (error) throw new Error(error.message);
     },
     onError: (error) => {
       console.error("🚨 [API CRASH] Update Failed! Reason:", error.message);
-      alert(`Database Sync Error: ${error.message}\n\nPlease check your Developer Console. Ensure 'image_url' and 'distribution_map_url' columns exist in Supabase.`);
+      alert(`Database Sync Error: ${error.message}\n\nPlease check your Developer Console.`);
     },
     onSuccess: (_, variables) => {
       console.log(`✅ [API] Sync Successful`);

@@ -4,22 +4,22 @@ import { db } from '../../lib/db';
 import { z } from 'zod';
 import { 
     Loader2, ArrowLeft, FileText, Stethoscope, ClipboardList, 
-    ShieldAlert, Thermometer, Scale, AlertTriangle, GitMerge
+    ShieldAlert, Thermometer, Scale, AlertTriangle, GitMerge, MapPin
 } from 'lucide-react';
 
-// Sub-components
 import { IUCNBadge } from './components/IUCNBadge';
 import { ProfileActionBar } from './components/ProfileActionBar';
 import { HusbandryLogsTab } from './components/HusbandryLogsTab';
 import { MedicalTab } from './components/MedicalTab';
 import { SignGenerator } from './components/SignGenerator';
+import { AnimalFormModal } from './components/AnimalFormModal';
 
-// 1. STRICT ZOD SCHEMA
+// 1. STRICT ZOD SCHEMA (Electric HTTP Streams send Postgres numerics as Strings!)
 const FullAnimalSchema = z.object({
     id: z.string().uuid(),
     entity_type: z.string(),
     parent_mob_id: z.string().nullable(),
-    census_count: z.union([z.number(), z.string()]), // Integers come as string
+    census_count: z.union([z.number(), z.string()]), 
     name: z.string().nullable(),
     species: z.string().nullable(),
     latin_name: z.string().nullable(),
@@ -30,7 +30,7 @@ const FullAnimalSchema = z.object({
     hazard_rating: z.string().nullable(),
     is_venomous: z.boolean(),
     weight_unit: z.string(),
-    flying_weight_g: z.union([z.number(), z.string()]).nullable(), // Numerics come as string
+    flying_weight_g: z.union([z.number(), z.string()]).nullable(), 
     winter_weight_g: z.union([z.number(), z.string()]).nullable(),
     average_target_weight: z.union([z.number(), z.string()]).nullable(),
     date_of_birth: z.string().nullable(),
@@ -80,6 +80,7 @@ export function AnimalProfileView({ animalId, onBack }: AnimalProfileViewProps) 
 
     const { data: animal, isLoading, isError } = useQuery({
         queryKey: ['animal', animalId],
+        refetchInterval: 1500, // Poll to catch background Electric Next stream updates
         queryFn: async () => {
             await db.waitReady;
             const res = await db.query(`SELECT * FROM animals WHERE id = $1 AND is_deleted = false`, [animalId]);
@@ -102,7 +103,7 @@ export function AnimalProfileView({ animalId, onBack }: AnimalProfileViewProps) 
             <div className="p-8 text-center bg-rose-50 m-6 rounded-2xl border border-rose-100">
                 <ShieldAlert className="mx-auto mb-3 text-rose-500" size={32} />
                 <h3 className="font-black text-rose-800 uppercase">Vault Integrity Error</h3>
-                <p className="text-sm text-rose-600 mb-4">Could not verify this animal record.</p>
+                <p className="text-sm text-rose-600 mb-4">Could not verify this animal record. It may be missing schema fields.</p>
                 <button onClick={onBack} className="px-4 py-2 bg-white text-rose-600 rounded-lg font-bold text-sm shadow-sm">Return to Roster</button>
             </div>
         );
@@ -110,101 +111,136 @@ export function AnimalProfileView({ animalId, onBack }: AnimalProfileViewProps) 
 
     return (
         <div className="flex flex-col h-[calc(100vh-64px)] bg-slate-50 overflow-y-auto">
-            {/* Action Bar & Header */}
             <div className="bg-white border-b border-slate-200 px-6 py-4 shadow-sm sticky top-0 z-20 shrink-0">
                 <div className="max-w-5xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <button onClick={onBack} className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors w-fit">
                         <ArrowLeft size={18} />
                         <span className="font-bold uppercase tracking-widest text-xs">Roster</span>
                     </button>
-                    {/* V3 FIX: Strict Prop Typing */}
-                    <ProfileActionBar animal={animal} onEdit={() => setEditModalOpen(true)} onSign={() => setSignGeneratorOpen(true)} />
+                    
+                    <ProfileActionBar 
+                        onEdit={() => setEditModalOpen(true)}
+                        onSign={() => setSignGeneratorOpen(true)}
+                        animal={animal as any}
+                    />
                 </div>
             </div>
 
-            <div className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-8">
-                {/* Header Profile Section */}
-                <div className="flex flex-col md:flex-row gap-8 items-start mb-8">
-                    <div className="w-32 h-32 md:w-48 md:h-48 rounded-3xl bg-white border border-slate-200 shadow-sm overflow-hidden shrink-0 flex items-center justify-center relative group">
-                        {animal.image_url ? (
-                            <img src={animal.image_url} alt={animal.name || 'Animal'} className="w-full h-full object-cover" />
-                        ) : (
-                            <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-300 font-black uppercase text-xs">No Image</div>
-                        )}
-                        {animal.is_venomous && (
-                            <div className="absolute top-2 right-2 w-8 h-8 bg-rose-500 rounded-full flex items-center justify-center shadow-lg border-2 border-white" title="Venomous">
-                                <AlertTriangle size={16} className="text-white" />
-                            </div>
-                        )}
-                    </div>
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 space-y-6">
+                <div className="max-w-5xl mx-auto">
                     
-                    <div className="flex-1 space-y-4 w-full">
-                        <div>
-                            <div className="flex flex-wrap items-center gap-3 mb-1">
-                                <h1 className="text-3xl md:text-4xl font-black text-slate-900 uppercase tracking-tight break-words">{animal.name || 'Unnamed'}</h1>
+                    <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200 mb-6 flex flex-col md:flex-row gap-6 md:items-center relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full blur-3xl -mr-20 -mt-20 opacity-60"></div>
+                        
+                        <div className="w-24 h-24 md:w-32 md:h-32 bg-slate-100 rounded-2xl border-4 border-white shadow-lg overflow-hidden shrink-0 z-10 flex items-center justify-center">
+                            <span className="text-5xl font-black text-slate-300 uppercase">{animal.name?.charAt(0) || '?'}</span>
+                        </div>
+                        
+                        <div className="flex-1 z-10">
+                            <div className="flex items-center flex-wrap gap-2 mb-2">
+                                {animal.entity_type === 'group' && (
+                                    <span className="px-2.5 py-1 bg-purple-100 text-purple-700 rounded-md text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
+                                        <GitMerge size={12} /> Mob/Group ({animal.census_count})
+                                    </span>
+                                )}
+                                {animal.is_venomous && (
+                                    <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded-md text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
+                                        <AlertTriangle size={12} /> Venomous
+                                    </span>
+                                )}
+                                {animal.hazard_rating && animal.hazard_rating !== 'LOW' && (
+                                    <span className="px-2.5 py-1 bg-orange-100 text-orange-700 rounded-md text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
+                                        Hazard: {animal.hazard_rating}
+                                    </span>
+                                )}
                                 <IUCNBadge status={animal.red_list_status || 'NE'} />
                             </div>
-                            <p className="text-base md:text-lg font-bold text-slate-500 uppercase tracking-widest break-words">{animal.species} <span className="text-slate-400 italic normal-case ml-2">{animal.latin_name}</span></p>
+                            <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight mb-1">
+                                {animal.name || 'Unnamed Individual'}
+                            </h1>
+                            <p className="text-lg font-medium text-slate-500 mb-4">{animal.species} <span className="italic opacity-70">({animal.latin_name})</span></p>
+                            
+                            <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-widest text-slate-400">
+                                <span className="flex items-center gap-1"><MapPin size={14}/> {animal.location || 'Location Not Set'}</span>
+                            </div>
                         </div>
+                    </div>
 
-                        <div className="flex flex-wrap gap-2">
-                            <span className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs font-black text-slate-600 uppercase tracking-widest">{animal.category}</span>
-                            {animal.gender && <span className="px-3 py-1 bg-indigo-50 border border-indigo-100 rounded-lg text-xs font-black text-indigo-700 uppercase tracking-widest">{animal.gender}</span>}
-                            <span className="px-3 py-1 bg-slate-800 text-white rounded-lg text-xs font-black uppercase tracking-widest flex items-center gap-1">
-                                {animal.entity_type === 'group' ? <GitMerge size={12}/> : null} Count: {animal.census_count}
-                            </span>
-                        </div>
+                    <div className="flex overflow-x-auto scrollbar-hide border-b border-slate-200 mb-6">
+                        <button onClick={() => setActiveTab('overview')} className={`px-6 py-4 text-sm font-black uppercase tracking-widest whitespace-nowrap transition-colors border-b-2 ${activeTab === 'overview' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Overview</button>
+                        <button onClick={() => setActiveTab('husbandry')} className={`px-6 py-4 text-sm font-black uppercase tracking-widest whitespace-nowrap transition-colors border-b-2 flex items-center gap-2 ${activeTab === 'husbandry' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
+                            <ClipboardList size={16} /> Husbandry Logs
+                        </button>
+                        <button onClick={() => setActiveTab('medical')} className={`px-6 py-4 text-sm font-black uppercase tracking-widest whitespace-nowrap transition-colors border-b-2 flex items-center gap-2 ${activeTab === 'medical' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
+                            <Stethoscope size={16} /> Medical History
+                        </button>
+                    </div>
 
-                        {(animal.ring_number || animal.microchip_id) && (
-                            <div className="flex flex-wrap gap-4 pt-2">
-                                {animal.ring_number && <div className="flex items-center gap-2 text-sm font-bold text-slate-600"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Ring: <span className="font-mono">{animal.ring_number}</span></div>}
-                                {animal.microchip_id && <div className="flex items-center gap-2 text-sm font-bold text-slate-600"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Chip: <span className="font-mono">{animal.microchip_id}</span></div>}
+                    <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 min-h-[400px]">
+                        {activeTab === 'overview' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="space-y-6">
+                                    <div>
+                                        <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><FileText size={14}/> Identifiers & Origin</h3>
+                                        <div className="bg-slate-50 rounded-xl p-4 space-y-3 border border-slate-100">
+                                            <div className="flex justify-between"><span className="text-sm font-bold text-slate-500">System ID</span><span className="text-sm font-mono text-slate-700">{animal.id.split('-')[0]}</span></div>
+                                            <div className="flex justify-between"><span className="text-sm font-bold text-slate-500">Microchip</span><span className="text-sm font-medium text-slate-700">{animal.microchip_id || 'N/A'}</span></div>
+                                            <div className="flex justify-between"><span className="text-sm font-bold text-slate-500">Ring/Band</span><span className="text-sm font-medium text-slate-700">{animal.ring_number || 'N/A'}</span></div>
+                                            <div className="flex justify-between border-t border-slate-200 pt-3"><span className="text-sm font-bold text-slate-500">Acquisition</span><span className="text-sm font-medium text-slate-700">{animal.acquisition_date || 'Unknown'}</span></div>
+                                            <div className="flex justify-between"><span className="text-sm font-bold text-slate-500">Origin</span><span className="text-sm font-medium text-slate-700">{animal.origin || 'Unknown'}</span></div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Scale size={14}/> Biometrics</h3>
+                                        <div className="bg-slate-50 rounded-xl p-4 space-y-3 border border-slate-100">
+                                            <div className="flex justify-between"><span className="text-sm font-bold text-slate-500">Gender</span><span className="text-sm font-medium text-slate-700 capitalize">{animal.gender || 'Unknown'}</span></div>
+                                            <div className="flex justify-between"><span className="text-sm font-bold text-slate-500">Target Weight</span><span className="text-sm font-medium text-slate-700">{animal.average_target_weight ? `${animal.average_target_weight}${animal.weight_unit}` : 'Not Set'}</span></div>
+                                            <div className="flex justify-between"><span className="text-sm font-bold text-slate-500">DOB</span><span className="text-sm font-medium text-slate-700">{animal.is_dob_unknown ? 'Unknown' : (animal.date_of_birth || 'Not Recorded')}</span></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-6">
+                                    <div>
+                                        <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Thermometer size={14}/> Environment</h3>
+                                        <div className="bg-slate-50 rounded-xl p-4 space-y-3 border border-slate-100">
+                                            <div className="flex justify-between"><span className="text-sm font-bold text-slate-500">Day Temp</span><span className="text-sm font-medium text-slate-700">{animal.target_day_temp_c ? `${animal.target_day_temp_c}°C` : 'Ambient'}</span></div>
+                                            <div className="flex justify-between"><span className="text-sm font-bold text-slate-500">Night Temp</span><span className="text-sm font-medium text-slate-700">{animal.target_night_temp_c ? `${animal.target_night_temp_c}°C` : 'Ambient'}</span></div>
+                                            <div className="flex justify-between"><span className="text-sm font-bold text-slate-500">Humidity Range</span><span className="text-sm font-medium text-slate-700">{animal.target_humidity_min_percent ? `${animal.target_humidity_min_percent}% - ${animal.target_humidity_max_percent}%` : 'N/A'}</span></div>
+                                        </div>
+                                    </div>
+
+                                    {animal.description && (
+                                        <div>
+                                            <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Description</h3>
+                                            <p className="text-sm text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100">{animal.description}</p>
+                                        </div>
+                                    )}
+
+                                    {animal.critical_husbandry_notes && (
+                                        <div className="bg-rose-50 rounded-xl p-4 border border-rose-200">
+                                            <h3 className="text-xs font-black uppercase tracking-widest text-rose-600 mb-2 flex items-center gap-2"><AlertTriangle size={14}/> Critical Notes</h3>
+                                            <p className="text-sm text-rose-800 font-medium">{animal.critical_husbandry_notes}</p>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
+                        {activeTab === 'husbandry' && <HusbandryLogsTab animalId={animalId} />}
+                        {activeTab === 'medical' && <MedicalTab animalId={animalId} />}
                     </div>
+
                 </div>
-
-                {/* Tab Navigation */}
-                <div className="flex overflow-x-auto scrollbar-hide bg-slate-200 p-1.5 rounded-2xl gap-1 mb-8">
-                    <button onClick={() => setActiveTab('overview')} className={`flex-1 min-w-[120px] py-2.5 px-4 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${activeTab === 'overview' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}><FileText size={16} className="inline md:mr-2 -mt-0.5" /> <span className="hidden md:inline">Overview</span></button>
-                    <button onClick={() => setActiveTab('husbandry')} className={`flex-1 min-w-[120px] py-2.5 px-4 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${activeTab === 'husbandry' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}><ClipboardList size={16} className="inline md:mr-2 -mt-0.5" /> <span className="hidden md:inline">Logs</span></button>
-                    <button onClick={() => setActiveTab('medical')} className={`flex-1 min-w-[120px] py-2.5 px-4 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${activeTab === 'medical' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}><Stethoscope size={16} className="inline md:mr-2 -mt-0.5" /> <span className="hidden md:inline">Medical</span></button>
-                </div>
-
-                {/* Tab Content */}
-                {activeTab === 'overview' && (
-                    <div className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
-                                <h3 className="text-sm font-black uppercase tracking-widest text-slate-800 mb-4 flex items-center gap-2"><FileText size={16} className="text-emerald-500"/> Core Details</h3>
-                                <div className="space-y-4">
-                                    <div><span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Record Type</span><span className="text-sm font-bold text-slate-700 capitalize">{animal.entity_type} {animal.entity_type === 'group' ? `(Count: ${animal.census_count})` : ''}</span></div>
-                                    <div><span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Gender</span><span className="text-sm font-bold text-slate-700 capitalize">{animal.gender || 'Unknown'}</span></div>
-                                    <div><span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Date of Birth</span><span className="text-sm font-bold text-slate-700">{animal.date_of_birth ? new Date(animal.date_of_birth).toLocaleDateString() : 'Unknown'}</span></div>
-                                    <div><span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Ring / Microchip ID</span><span className="text-sm font-bold text-slate-700 font-mono">{animal.ring_number || animal.microchip_id || 'None'}</span></div>
-                                </div>
-                            </div>
-
-                            <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
-                                <h3 className="text-sm font-black uppercase tracking-widest text-slate-800 mb-4 flex items-center gap-2"><Thermometer size={16} className="text-amber-500"/> Environmental Targets</h3>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div><span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Day Temp</span><span className="text-sm font-bold text-slate-700">{animal.target_day_temp_c !== null ? `${animal.target_day_temp_c}°C` : 'N/A'}</span></div>
-                                    <div><span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Night Temp</span><span className="text-sm font-bold text-slate-700">{animal.target_night_temp_c !== null ? `${animal.target_night_temp_c}°C` : 'N/A'}</span></div>
-                                    <div className="col-span-2"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Humidity Target</span><span className="text-sm font-bold text-slate-700">{animal.target_humidity_min_percent !== null ? `${animal.target_humidity_min_percent}% - ${animal.target_humidity_max_percent}%` : 'N/A'}</span></div>
-                                    <div className="col-span-2"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Misting Protocol</span><span className="text-sm font-bold text-slate-700">{animal.misting_frequency || 'N/A'}</span></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-                
-                {/* Child Tabs */}
-                {activeTab === 'medical' && <MedicalTab animalId={animal.id} />}
-                {activeTab === 'husbandry' && <HusbandryLogsTab animalId={animal.id} />}
             </div>
 
-            {/* V3 FIX: Strict Prop Typing */}
-            {signGeneratorOpen && <SignGenerator animal={animal} onClose={() => setSignGeneratorOpen(false)} orgProfile={null} />}
+            <AnimalFormModal 
+                isOpen={editModalOpen} 
+                onClose={() => setEditModalOpen(false)} 
+                initialData={animal} 
+            />
+            
+            {signGeneratorOpen && <SignGenerator animal={animal as any} onClose={() => setSignGeneratorOpen(false)} />}
         </div>
     );
 }

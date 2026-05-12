@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { db } from '../../lib/db';
 import { useDashboardStore } from '../../store/dashboardStore';
-import { AddAnimalModal } from '../animals/components/AddAnimalModal';
+import { AnimalFormModal } from '../animals/components/AnimalFormModal';
 import { 
   Heart, Scale, Drumstick, ArrowUpDown, Loader2, ClipboardCheck, 
   CheckCircle, Lock, Unlock, ChevronUp, ChevronDown, Calendar, 
@@ -352,7 +352,7 @@ export function Dashboard() {
         </table>
       </div>
 
-      <AddAnimalModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} />
+    <AnimalFormModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} />
     </div>
   );
 }

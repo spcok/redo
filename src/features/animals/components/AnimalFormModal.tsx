@@ -1,9 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { useForm } from '@tanstack/react-form';
 import { zodValidator } from '@tanstack/zod-form-adapter';
 import { useAuthStore } from '../../../store/authStore';
 import { useAddAnimal, useUpdateAnimal } from '../api/mutations';
-import { X, Save, Loader2, Shield, Skull, Image as ImageIcon, Map as MapIcon, UploadCloud } from 'lucide-react';
+import { OfflineImageUploader } from './OfflineImageUploader';
+import { X, Save, Loader2, Shield, Skull, Image as ImageIcon, Map as MapIcon } from 'lucide-react';
 
 const CATEGORIES = ['OWLS', 'RAPTORS', 'MAMMALS', 'EXOTICS'];
 const RED_LIST_STATUSES = ['NE', 'DD', 'LC', 'NT', 'VU', 'EN', 'CR', 'EW', 'EX'];
@@ -20,43 +21,6 @@ interface AnimalFormModalProps {
   initialData?: any; 
 }
 
-// ARCHITECT NOTE: High-performance canvas compressor for base64
-const processImageFile = (file: File, callback: (base64: string) => void) => {
-  const reader = new FileReader();
-  reader.readAsDataURL(file);
-  reader.onload = (event) => {
-    const img = new Image();
-    img.src = event.target?.result as string;
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const MAX_SIZE = 800; // Limit dimensions to keep base64 payload under 250kb
-      let width = img.width;
-      let height = img.height;
-
-      if (width > height) {
-        if (width > MAX_SIZE) {
-          height *= MAX_SIZE / width;
-          width = MAX_SIZE;
-        }
-      } else {
-        if (height > MAX_SIZE) {
-          width *= MAX_SIZE / height;
-          height = MAX_SIZE;
-        }
-      }
-
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      ctx?.drawImage(img, 0, 0, width, height);
-      
-      // Compress to JPEG at 70% quality
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-      callback(dataUrl);
-    };
-  };
-};
-
 export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModalProps) {
   const session = useAuthStore(s => s.session);
   const currentUserId = session?.user?.id || '00000000-0000-0000-0000-000000000000';
@@ -65,9 +29,6 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
   const updateAnimal = useUpdateAnimal();
   const isEditing = !!initialData;
   const [activeTab, setActiveTab] = useState<'basic' | 'id' | 'biometrics' | 'media' | 'notes'>('basic');
-
-  const profileFileRef = useRef<HTMLInputElement>(null);
-  const mapFileRef = useRef<HTMLInputElement>(null);
 
   const form = useForm({
     validatorAdapter: zodValidator,
@@ -100,11 +61,6 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
       target_night_temp_c: initialData?.target_night_temp_c || '',
       target_humidity_min_percent: initialData?.target_humidity_min_percent || '',
       target_humidity_max_percent: initialData?.target_humidity_max_percent || '',
-      misting_frequency: initialData?.misting_frequency || '',
-      acquisition_date: initialData?.acquisition_date || '',
-      origin: initialData?.origin || '',
-      is_boarding: initialData?.is_boarding || false,
-      is_quarantine: initialData?.is_quarantine || false,
     },
     onSubmit: async ({ value }) => {
       const parseStr = (v: any) => v === '' ? null : String(v);
@@ -140,7 +96,6 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
 
   if (!isOpen) return null;
 
-  // High Contrast Text (slate-900)
   const inputClass = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-400";
   const labelClass = "block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1";
 
@@ -187,9 +142,6 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
                 )} />
                 <form.Field name="location" children={(f) => (
                   <div><label className={labelClass}>Enclosure / Location</label><input value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} placeholder="e.g. Block A, Aviary 4" /></div>
-                )} />
-                <form.Field name="origin" children={(f) => (
-                  <div><label className={labelClass}>Origin / Source</label><input value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
                 )} />
               </div>
             )}
@@ -245,51 +197,22 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
             )}
 
             {activeTab === 'media' && (
-              <div className="space-y-8">
-                {/* Profile Photo Uploader */}
+              <div className="space-y-6">
                 <form.Field name="image_url" children={(f) => (
-                  <div className="bg-slate-50 border border-slate-200 p-6 rounded-2xl">
-                    <label className={labelClass}>Profile Photo</label>
-                    <div className="flex gap-6 items-center">
-                      <div className="w-32 h-32 bg-white rounded-2xl border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                        {f.state.value ? <img src={f.state.value} className="w-full h-full object-cover" /> : <ImageIcon size={32} className="text-slate-300"/>}
-                      </div>
-                      <div className="flex-1 space-y-3">
-                        <input type="file" accept="image/*" ref={profileFileRef} className="hidden" onChange={(e) => {
-                          if (e.target.files && e.target.files[0]) {
-                            processImageFile(e.target.files[0], (base64) => f.handleChange(base64));
-                          }
-                        }} />
-                        <button type="button" onClick={() => profileFileRef.current?.click()} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:border-indigo-500 rounded-xl text-sm font-bold text-slate-700 transition-colors">
-                          <UploadCloud size={16} className="text-indigo-500"/> Select Local Image
-                        </button>
-                        <p className="text-[10px] uppercase font-bold text-slate-400 leading-tight">Image will be automatically downsized and compressed before saving to the vault to preserve performance.</p>
-                      </div>
-                    </div>
-                  </div>
+                  <OfflineImageUploader 
+                    label="Profile Photo" 
+                    value={f.state.value} 
+                    onChange={f.handleChange} 
+                    icon={<ImageIcon size={32} />} 
+                  />
                 )} />
-                
-                {/* Distribution Map Uploader */}
                 <form.Field name="distribution_map_url" children={(f) => (
-                  <div className="bg-slate-50 border border-slate-200 p-6 rounded-2xl">
-                    <label className={labelClass}>Distribution Map</label>
-                    <div className="flex gap-6 items-center">
-                      <div className="w-32 h-32 bg-white rounded-2xl border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                        {f.state.value ? <img src={f.state.value} className="w-full h-full object-cover" /> : <MapIcon size={32} className="text-slate-300"/>}
-                      </div>
-                      <div className="flex-1 space-y-3">
-                        <input type="file" accept="image/*" ref={mapFileRef} className="hidden" onChange={(e) => {
-                          if (e.target.files && e.target.files[0]) {
-                            processImageFile(e.target.files[0], (base64) => f.handleChange(base64));
-                          }
-                        }} />
-                        <button type="button" onClick={() => mapFileRef.current?.click()} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:border-indigo-500 rounded-xl text-sm font-bold text-slate-700 transition-colors">
-                          <UploadCloud size={16} className="text-indigo-500"/> Select Map Image
-                        </button>
-                        <p className="text-[10px] uppercase font-bold text-slate-400 leading-tight">Image will be automatically downsized and compressed before saving to the vault to preserve performance.</p>
-                      </div>
-                    </div>
-                  </div>
+                  <OfflineImageUploader 
+                    label="Distribution Map" 
+                    value={f.state.value} 
+                    onChange={f.handleChange} 
+                    icon={<MapIcon size={32} />} 
+                  />
                 )} />
               </div>
             )}
@@ -316,7 +239,7 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
             <button type="button" onClick={onClose} className="flex-1 md:flex-none px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-100 transition-colors">Discard</button>
             <form.Subscribe selector={(state) => state.isSubmitting}>
               {(isSubmitting) => (
-                <button form="full-animal-form" type="submit" disabled={isSubmitting} className="flex-1 md:flex-none px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-2">
+                <button form="full-animal-form" type="submit" disabled={isSubmitting} className="flex-1 md:flex-none px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
                   {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} 
                   {isEditing ? 'Update Record' : 'Authorize Entry'}
                 </button>

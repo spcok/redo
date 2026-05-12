@@ -46,6 +46,7 @@ export const useAddAnimal = () => {
   return useMutation({
     mutationKey: ['offline-add-animal'], 
     onMutate: async (val: AnimalPayload) => {
+      console.log(`📸 [API] Attempting Local Insert. Image size: ${val.image_url?.length || 0} bytes`);
       await db.waitReady;
       await db.query(
         `INSERT INTO animals (
@@ -71,6 +72,7 @@ export const useAddAnimal = () => {
       );
     },
     mutationFn: async (val: AnimalPayload) => {
+      console.log(`☁️ [API] Attempting Supabase Insert...`);
       const { currentUserId, animalId, ...supabasePayload } = val;
       const { error } = await supabase.from('animals').insert({
         ...supabasePayload, 
@@ -84,7 +86,14 @@ export const useAddAnimal = () => {
       });
       if (error) throw new Error(error.message);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dashboardData'] })
+    onError: (error) => {
+      console.error("🚨 [API CRASH] Mutation Failed! Reason:", error.message);
+      alert(`Database Sync Error: ${error.message}\n\nPlease check your Developer Console. Ensure 'image_url' and 'distribution_map_url' columns exist in Supabase.`);
+    },
+    onSuccess: () => {
+      console.log(`✅ [API] Sync Successful`);
+      queryClient.invalidateQueries({ queryKey: ['dashboardData'] });
+    }
   });
 };
 
@@ -94,6 +103,7 @@ export const useUpdateAnimal = () => {
   return useMutation({
     mutationKey: ['offline-update-animal'], 
     onMutate: async (val: AnimalPayload) => {
+      console.log(`📸 [API] Attempting Local Update. Image size: ${val.image_url?.length || 0} bytes`);
       await db.waitReady;
       await db.query(
         `UPDATE animals SET 
@@ -115,13 +125,19 @@ export const useUpdateAnimal = () => {
       );
     },
     mutationFn: async (val: AnimalPayload) => {
+      console.log(`☁️ [API] Attempting Supabase Update...`);
       const { currentUserId, animalId, ...supabasePayload } = val;
       const { error } = await supabase.from('animals').update({
         ...supabasePayload, modified_by: currentUserId, updated_at: new Date().toISOString()
       }).eq('id', animalId);
       if (error) throw new Error(error.message);
     },
+    onError: (error) => {
+      console.error("🚨 [API CRASH] Update Failed! Reason:", error.message);
+      alert(`Database Sync Error: ${error.message}\n\nPlease check your Developer Console. Ensure 'image_url' and 'distribution_map_url' columns exist in Supabase.`);
+    },
     onSuccess: (_, variables) => {
+      console.log(`✅ [API] Sync Successful`);
       queryClient.invalidateQueries({ queryKey: ['dashboardData'] });
       queryClient.invalidateQueries({ queryKey: ['animal', variables.animalId] });
     }

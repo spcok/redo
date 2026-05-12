@@ -1,17 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useForm } from '@tanstack/react-form';
 import { zodValidator } from '@tanstack/zod-form-adapter';
 import { useAuthStore } from '../../../store/authStore';
 import { useAddAnimal, useUpdateAnimal } from '../api/mutations';
-import { X, Save, Loader2, Shield, Skull, Image as ImageIcon, Map as MapIcon } from 'lucide-react';
+import { X, Save, Loader2, Shield, Skull, Image as ImageIcon, Map as MapIcon, UploadCloud } from 'lucide-react';
 
 const CATEGORIES = ['OWLS', 'RAPTORS', 'MAMMALS', 'EXOTICS'];
 const RED_LIST_STATUSES = ['NE', 'DD', 'LC', 'NT', 'VU', 'EN', 'CR', 'EW', 'EX'];
 const HAZARD_RATINGS = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 const WEIGHT_UNITS = [
   { label: 'Grams (g)', value: 'g' },
-  { label: 'Ounces/8ths (oz)', value: 'oz' },
-  { label: 'Pounds/Ounces/8ths (lb)', value: 'lb' }
+  { label: 'Ounces (oz)', value: 'oz' },
+  { label: 'Pounds/Ounces (lb/oz)', value: 'lb' }
 ];
 
 interface AnimalFormModalProps {
@@ -19,6 +19,43 @@ interface AnimalFormModalProps {
   onClose: () => void;
   initialData?: any; 
 }
+
+// ARCHITECT NOTE: High-performance canvas compressor for base64
+const processImageFile = (file: File, callback: (base64: string) => void) => {
+  const reader = new FileReader();
+  reader.readAsDataURL(file);
+  reader.onload = (event) => {
+    const img = new Image();
+    img.src = event.target?.result as string;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const MAX_SIZE = 800; // Limit dimensions to keep base64 payload under 250kb
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > MAX_SIZE) {
+          height *= MAX_SIZE / width;
+          width = MAX_SIZE;
+        }
+      } else {
+        if (height > MAX_SIZE) {
+          width *= MAX_SIZE / height;
+          height = MAX_SIZE;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(img, 0, 0, width, height);
+      
+      // Compress to JPEG at 70% quality
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+      callback(dataUrl);
+    };
+  };
+};
 
 export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModalProps) {
   const session = useAuthStore(s => s.session);
@@ -28,6 +65,9 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
   const updateAnimal = useUpdateAnimal();
   const isEditing = !!initialData;
   const [activeTab, setActiveTab] = useState<'basic' | 'id' | 'biometrics' | 'media' | 'notes'>('basic');
+
+  const profileFileRef = useRef<HTMLInputElement>(null);
+  const mapFileRef = useRef<HTMLInputElement>(null);
 
   const form = useForm({
     validatorAdapter: zodValidator,
@@ -100,7 +140,7 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
 
   if (!isOpen) return null;
 
-  // ARCHITECT NOTE: Changed text-slate-400 to text-slate-900 for readability
+  // High Contrast Text (slate-900)
   const inputClass = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-400";
   const labelClass = "block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1";
 
@@ -204,32 +244,49 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
               </div>
             )}
 
-            {/* NEW TAB: MEDIA */}
             {activeTab === 'media' && (
-              <div className="space-y-6">
+              <div className="space-y-8">
+                {/* Profile Photo Uploader */}
                 <form.Field name="image_url" children={(f) => (
-                  <div className="space-y-2">
-                    <label className={labelClass}>Profile Photo URL</label>
-                    <div className="flex gap-4 items-start">
-                      <div className="flex-1">
-                        <input value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} placeholder="https://..." />
+                  <div className="bg-slate-50 border border-slate-200 p-6 rounded-2xl">
+                    <label className={labelClass}>Profile Photo</label>
+                    <div className="flex gap-6 items-center">
+                      <div className="w-32 h-32 bg-white rounded-2xl border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                        {f.state.value ? <img src={f.state.value} className="w-full h-full object-cover" /> : <ImageIcon size={32} className="text-slate-300"/>}
                       </div>
-                      <div className="w-20 h-20 bg-slate-100 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
-                        {f.state.value ? <img src={f.state.value} className="w-full h-full object-cover" /> : <ImageIcon size={24} className="text-slate-300"/>}
+                      <div className="flex-1 space-y-3">
+                        <input type="file" accept="image/*" ref={profileFileRef} className="hidden" onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            processImageFile(e.target.files[0], (base64) => f.handleChange(base64));
+                          }
+                        }} />
+                        <button type="button" onClick={() => profileFileRef.current?.click()} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:border-indigo-500 rounded-xl text-sm font-bold text-slate-700 transition-colors">
+                          <UploadCloud size={16} className="text-indigo-500"/> Select Local Image
+                        </button>
+                        <p className="text-[10px] uppercase font-bold text-slate-400 leading-tight">Image will be automatically downsized and compressed before saving to the vault to preserve performance.</p>
                       </div>
                     </div>
                   </div>
                 )} />
                 
+                {/* Distribution Map Uploader */}
                 <form.Field name="distribution_map_url" children={(f) => (
-                  <div className="space-y-2">
-                    <label className={labelClass}>Distribution Map URL</label>
-                    <div className="flex gap-4 items-start">
-                      <div className="flex-1">
-                        <input value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} placeholder="https://..." />
+                  <div className="bg-slate-50 border border-slate-200 p-6 rounded-2xl">
+                    <label className={labelClass}>Distribution Map</label>
+                    <div className="flex gap-6 items-center">
+                      <div className="w-32 h-32 bg-white rounded-2xl border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                        {f.state.value ? <img src={f.state.value} className="w-full h-full object-cover" /> : <MapIcon size={32} className="text-slate-300"/>}
                       </div>
-                      <div className="w-20 h-20 bg-slate-100 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
-                        {f.state.value ? <img src={f.state.value} className="w-full h-full object-cover" /> : <MapIcon size={24} className="text-slate-300"/>}
+                      <div className="flex-1 space-y-3">
+                        <input type="file" accept="image/*" ref={mapFileRef} className="hidden" onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            processImageFile(e.target.files[0], (base64) => f.handleChange(base64));
+                          }
+                        }} />
+                        <button type="button" onClick={() => mapFileRef.current?.click()} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:border-indigo-500 rounded-xl text-sm font-bold text-slate-700 transition-colors">
+                          <UploadCloud size={16} className="text-indigo-500"/> Select Map Image
+                        </button>
+                        <p className="text-[10px] uppercase font-bold text-slate-400 leading-tight">Image will be automatically downsized and compressed before saving to the vault to preserve performance.</p>
                       </div>
                     </div>
                   </div>

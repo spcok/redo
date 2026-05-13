@@ -18,15 +18,13 @@ class DatabaseService {
     try {
       await this.pg.waitReady;
 
-      await this.pg.exec(`
-        -- =====================================================================
-        -- KOA V3 EXHAUSTIVE SCHEMA (18 TABLES)
-        -- Built exactly to v3-database schema.csv specifications
-        -- =====================================================================
+      // =====================================================================
+      // 1. V3 MASTER SCHEMA (Chunked to prevent clipboard truncation)
+      // =====================================================================
 
-        -- 1. ANIMALS
+      await this.pg.exec(`
         CREATE TABLE IF NOT EXISTS animals (
-          id uuid PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           entity_type text NOT NULL,
           parent_mob_id uuid,
           census_count integer NOT NULL,
@@ -73,7 +71,7 @@ class DatabaseService {
           archived boolean NOT NULL DEFAULT false,
           archive_reason text,
           archive_type text,
-          archived_at timestamp with time zone,
+          archived_at timestamp with time zone NOT NULL,
           is_deleted boolean NOT NULL DEFAULT false,
           created_by uuid,
           modified_by uuid,
@@ -81,22 +79,22 @@ class DatabaseService {
           updated_at timestamp with time zone NOT NULL DEFAULT now(),
           sign_content text
         );
+      `);
 
-        -- 2. CLINICAL_ATTACHMENTS
+      await this.pg.exec(`
         CREATE TABLE IF NOT EXISTS clinical_attachments (
-          id uuid PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           record_id uuid NOT NULL,
           file_name text NOT NULL,
           file_type text NOT NULL,
           file_url text NOT NULL,
           is_deleted boolean NOT NULL DEFAULT false,
-          created_by uuid NOT NULL,
+          created_by uuid,
           created_at timestamp with time zone NOT NULL DEFAULT now()
         );
-
-        -- 3. CLINICAL_RECORDS
+        
         CREATE TABLE IF NOT EXISTS clinical_records (
-          id uuid PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           animal_id uuid NOT NULL,
           record_type text NOT NULL,
           record_date timestamp with time zone NOT NULL DEFAULT now(),
@@ -104,39 +102,39 @@ class DatabaseService {
           soap_objective text NOT NULL,
           soap_assessment text NOT NULL,
           soap_plan text NOT NULL,
-          weight_grams numeric NOT NULL,
+          weight_grams numeric,
           conductor_role text NOT NULL,
           conducted_by uuid NOT NULL,
           external_vet_name text NOT NULL,
           external_vet_clinic text NOT NULL,
           is_deleted boolean NOT NULL DEFAULT false,
-          created_by uuid NOT NULL,
-          modified_by uuid NOT NULL,
+          created_by uuid,
+          modified_by uuid,
           created_at timestamp with time zone NOT NULL DEFAULT now(),
           updated_at timestamp with time zone NOT NULL DEFAULT now()
         );
+      `);
 
-        -- 4. CLINICAL_SCHEDULE
+      await this.pg.exec(`
         CREATE TABLE IF NOT EXISTS clinical_schedule (
-          id uuid PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           animal_id uuid NOT NULL,
           schedule_type text NOT NULL,
           title text NOT NULL,
           start_date date NOT NULL,
-          end_date date NOT NULL,
+          end_date date,
           frequency text NOT NULL,
           status text NOT NULL DEFAULT 'ACTIVE',
-          assigned_to uuid NOT NULL,
+          assigned_to uuid,
           is_deleted boolean NOT NULL DEFAULT false,
-          created_by uuid NOT NULL,
-          modified_by uuid NOT NULL,
+          created_by uuid,
+          modified_by uuid,
           created_at timestamp with time zone NOT NULL DEFAULT now(),
           updated_at timestamp with time zone NOT NULL DEFAULT now()
         );
-
-        -- 5. DAILY_LOGS
+        
         CREATE TABLE IF NOT EXISTS daily_logs (
-          id uuid PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           animal_id uuid NOT NULL,
           log_type text NOT NULL,
           log_date timestamp with time zone NOT NULL,
@@ -152,10 +150,11 @@ class DatabaseService {
           created_at timestamp with time zone NOT NULL DEFAULT now(),
           updated_at timestamp with time zone NOT NULL DEFAULT now()
         );
+      `);
 
-        -- 6. DAILY_ROUNDS
+      await this.pg.exec(`
         CREATE TABLE IF NOT EXISTS daily_rounds (
-          id uuid PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           animal_id uuid NOT NULL,
           date date NOT NULL,
           shift text NOT NULL,
@@ -165,7 +164,7 @@ class DatabaseService {
           locks_secured boolean NOT NULL,
           animal_issue_note text,
           general_section_note text,
-          completed_by uuid NOT NULL,
+          completed_by uuid,
           completed_at timestamp with time zone NOT NULL,
           is_deleted boolean NOT NULL DEFAULT false,
           created_by uuid,
@@ -173,16 +172,16 @@ class DatabaseService {
           created_at timestamp with time zone NOT NULL DEFAULT now(),
           updated_at timestamp with time zone NOT NULL DEFAULT now()
         );
-
-        -- 7. FEEDING_SCHEDULES
+        
         CREATE TABLE IF NOT EXISTS feeding_schedules (
-          id uuid PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           animal_id uuid NOT NULL,
-          scheduled_date date NOT NULL,
+          interval_days integer NOT NULL DEFAULT 1,
+          next_feed_date date NOT NULL,
           food_type text NOT NULL,
-          quantity numeric NOT NULL,
+          quantity_grams numeric NOT NULL,
           calci_dust boolean NOT NULL DEFAULT false,
-          additional_notes text,
+          notes text,
           is_completed boolean NOT NULL DEFAULT false,
           completed_at timestamp with time zone,
           completed_by uuid,
@@ -190,14 +189,13 @@ class DatabaseService {
           created_by uuid,
           modified_by uuid,
           created_at timestamp with time zone NOT NULL DEFAULT now(),
-          updated_at timestamp with time zone NOT NULL DEFAULT now(),
-          next_feed_date date,
-          interval_days integer DEFAULT 1
+          updated_at timestamp with time zone NOT NULL DEFAULT now()
         );
+      `);
 
-        -- 8. FIRE_DRILL_LOGS
+      await this.pg.exec(`
         CREATE TABLE IF NOT EXISTS fire_drill_logs (
-          id uuid PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           drill_date timestamp with time zone NOT NULL DEFAULT now(),
           drill_type text NOT NULL,
           areas_involved text NOT NULL,
@@ -213,10 +211,9 @@ class DatabaseService {
           created_at timestamp with time zone NOT NULL DEFAULT now(),
           updated_at timestamp with time zone NOT NULL DEFAULT now()
         );
-
-        -- 9. INCIDENTS
+        
         CREATE TABLE IF NOT EXISTS incidents (
-          id uuid PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           incident_date timestamp with time zone NOT NULL DEFAULT now(),
           person_involved_name text NOT NULL,
           person_type text NOT NULL,
@@ -237,28 +234,28 @@ class DatabaseService {
           created_at timestamp with time zone NOT NULL DEFAULT now(),
           updated_at timestamp with time zone NOT NULL DEFAULT now()
         );
+      `);
 
-        -- 10. ISOLATION_LOGS
+      await this.pg.exec(`
         CREATE TABLE IF NOT EXISTS isolation_logs (
-          id uuid PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           animal_id uuid NOT NULL,
           isolation_type text NOT NULL,
           start_date date NOT NULL DEFAULT CURRENT_DATE,
-          end_date date NOT NULL,
+          end_date date,
           location text NOT NULL,
-          reason_notes text NOT NULL,
+          reason_notes text,
           status text NOT NULL DEFAULT 'ACTIVE',
-          authorized_by uuid NOT NULL,
+          authorized_by uuid,
           is_deleted boolean NOT NULL DEFAULT false,
-          created_by uuid NOT NULL,
-          modified_by uuid NOT NULL,
+          created_by uuid,
+          modified_by uuid,
           created_at timestamp with time zone NOT NULL DEFAULT now(),
           updated_at timestamp with time zone NOT NULL DEFAULT now()
         );
-
-        -- 11. MAINTENANCE_TICKETS
+        
         CREATE TABLE IF NOT EXISTS maintenance_tickets (
-          id uuid PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           title text NOT NULL,
           description text,
           category text NOT NULL,
@@ -274,26 +271,26 @@ class DatabaseService {
           created_at timestamp with time zone NOT NULL DEFAULT now(),
           updated_at timestamp with time zone NOT NULL DEFAULT now()
         );
+      `);
 
-        -- 12. MEDICATION_LOGS
+      await this.pg.exec(`
         CREATE TABLE IF NOT EXISTS medication_logs (
-          id uuid PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           schedule_id uuid NOT NULL,
           animal_id uuid NOT NULL,
           administered_at timestamp with time zone NOT NULL DEFAULT now(),
-          status text NOT NULL,
-          notes text NOT NULL,
+          status text NOT NULL DEFAULT '',
+          notes text DEFAULT '',
           administered_by uuid NOT NULL,
           is_deleted boolean NOT NULL DEFAULT false,
-          created_by uuid NOT NULL,
-          modified_by uuid NOT NULL,
+          created_by uuid,
+          modified_by uuid,
           created_at timestamp with time zone NOT NULL DEFAULT now(),
           updated_at timestamp with time zone NOT NULL DEFAULT now()
         );
-
-        -- 13. OPERATIONAL_LISTS
+        
         CREATE TABLE IF NOT EXISTS operational_lists (
-          id uuid PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           name text NOT NULL,
           description text,
           category text,
@@ -303,17 +300,17 @@ class DatabaseService {
           created_at timestamp with time zone NOT NULL DEFAULT now(),
           updated_at timestamp with time zone NOT NULL DEFAULT now()
         );
+      `);
 
-        -- 14. ROLE_PERMISSIONS
+      await this.pg.exec(`
         CREATE TABLE IF NOT EXISTS role_permissions (
-          id uuid PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           role text NOT NULL,
           permission text NOT NULL
         );
-
-        -- 15. SAFETY_INCIDENTS
+        
         CREATE TABLE IF NOT EXISTS safety_incidents (
-          id uuid PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           incident_date timestamp with time zone NOT NULL DEFAULT now(),
           title text NOT NULL,
           incident_type text NOT NULL,
@@ -335,10 +332,11 @@ class DatabaseService {
           created_at timestamp with time zone NOT NULL DEFAULT now(),
           updated_at timestamp with time zone NOT NULL DEFAULT now()
         );
+      `);
 
-        -- 16. TASKS
+      await this.pg.exec(`
         CREATE TABLE IF NOT EXISTS tasks (
-          id uuid PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           title text NOT NULL,
           description text,
           assigned_to uuid,
@@ -350,19 +348,16 @@ class DatabaseService {
           is_deleted boolean NOT NULL DEFAULT false,
           created_by uuid,
           modified_by uuid,
-          created_at timestamp with time zone NOT NULL DEFAULT now(),
-          updated_at timestamp with time zone NOT NULL DEFAULT now(),
-          location text,
-          priority text NOT NULL DEFAULT 'MEDIUM'
+          created_at timestamp with time zone DEFAULT now(),
+          updated_at timestamp with time zone DEFAULT now()
         );
-
-        -- 17. TIMESHEETS
+        
         CREATE TABLE IF NOT EXISTS timesheets (
-          id uuid PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           user_id uuid,
           shift_date date NOT NULL,
           clock_in_time timestamp with time zone NOT NULL DEFAULT now(),
-          clock_out_time timestamp with time zone NOT NULL,
+          clock_out_time timestamp with time zone,
           status text NOT NULL,
           notes text,
           is_deleted boolean NOT NULL DEFAULT false,
@@ -371,45 +366,75 @@ class DatabaseService {
           created_at timestamp with time zone NOT NULL DEFAULT now(),
           updated_at timestamp with time zone NOT NULL DEFAULT now()
         );
-
-        -- 18. USERS (Fixes 'name' and 'full_name' dashboard errors)
+        
         CREATE TABLE IF NOT EXISTS users (
-          id uuid PRIMARY KEY NOT NULL,
+          id uuid PRIMARY KEY,
           email text,
           name text,
           initials text,
-          full_name text,  -- ADDED: Ensures backward UI compatibility
           role text DEFAULT 'STAFF',
           is_deleted boolean NOT NULL DEFAULT false,
           created_at timestamp with time zone DEFAULT now()
         );
       `);
 
-      console.log('✅ [DB] Local PGlite initialized with EXHAUSTIVE V3 Schema (18 Tables).');
-
       // =====================================================================
-      // PERFORMANCE INDEXES: Crucial for massive data syncs to prevent freezing
+      // 2. V3 PERFORMANCE UPGRADE: Postgres Indexing
       // =====================================================================
       await this.pg.exec(`
-        CREATE INDEX IF NOT EXISTS idx_animals_is_deleted ON animals(is_deleted);
-        CREATE INDEX IF NOT EXISTS idx_timesheets_user_date ON timesheets(user_id, shift_date);
-        CREATE INDEX IF NOT EXISTS idx_tasks_assigned_status ON tasks(assigned_to, status);
-        CREATE INDEX IF NOT EXISTS idx_clinical_schedule_animal ON clinical_schedule(animal_id);
-        CREATE INDEX IF NOT EXISTS idx_clinical_records_animal ON clinical_records(animal_id);
+        CREATE INDEX IF NOT EXISTS idx_animals_deleted ON animals(is_deleted);
+        CREATE INDEX IF NOT EXISTS idx_animals_category ON animals(category);
+        CREATE INDEX IF NOT EXISTS idx_animals_name ON animals(name);
         CREATE INDEX IF NOT EXISTS idx_daily_logs_animal ON daily_logs(animal_id);
         CREATE INDEX IF NOT EXISTS idx_daily_logs_date ON daily_logs(log_date);
-        CREATE INDEX IF NOT EXISTS idx_daily_rounds_date ON daily_rounds(date);
+        CREATE INDEX IF NOT EXISTS idx_daily_rounds_date_shift ON daily_rounds(date, shift);
+        CREATE INDEX IF NOT EXISTS idx_feeding_schedules_animal ON feeding_schedules(animal_id);
+        CREATE INDEX IF NOT EXISTS idx_feeding_schedules_date ON feeding_schedules(next_feed_date);
+        CREATE INDEX IF NOT EXISTS idx_clinical_schedule_animal ON clinical_schedule(animal_id);
+        CREATE INDEX IF NOT EXISTS idx_clinical_schedule_status ON clinical_schedule(status);
+        CREATE INDEX IF NOT EXISTS idx_clinical_records_animal ON clinical_records(animal_id);
+        CREATE INDEX IF NOT EXISTS idx_medication_logs_animal ON medication_logs(animal_id);
+        CREATE INDEX IF NOT EXISTS idx_isolation_logs_animal ON isolation_logs(animal_id);
+        CREATE INDEX IF NOT EXISTS idx_timesheets_user_date ON timesheets(user_id, shift_date);
+        CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
       `);
 
+      console.log('[DB] Local PGlite initialized with complete V3 Schema and Performance Indexes.');
+
+      // =====================================================================
+      // 3. START THE ELECTRIC NEXT BACKGROUND STREAM
+      // =====================================================================
+      try {
+        // @ts-ignore - The sync property is injected by the extension
+        await this.pg.sync.syncShapeToTable({
+          shape: {
+            url: 'https://xwtau3dj2gas.share.zrok.io/v1/shape',
+            params: {
+              table: 'animals'
+            }
+          },
+          table: 'animals',
+          primaryKey: ['id']
+        });
+        console.log("[Vault] Native Electric Sync connected for 'animals' table.");
+      } catch (syncErr) {
+        console.error("[Vault] Electric Sync Error:", syncErr);
+      }
+
     } catch (error) {
-      console.error('🚨 [DB] Failed to initialize local database:', error);
+      console.error('[DB] Failed to initialize local vault:', error);
       throw error;
     }
   }
 
-  public async query(sql: string, params?: any[]) {
+  async query(text: string, params?: any[]) {
     await this.waitReady;
-    return this.pg.query(sql, params);
+    return this.pg.query(text, params);
+  }
+  
+  async exec(text: string) {
+    await this.waitReady;
+    return this.pg.exec(text);
   }
 }
 

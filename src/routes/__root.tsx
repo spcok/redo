@@ -27,9 +27,7 @@ function RootComponent() {
   // ZUSTAND LAW: Strict selectors
   const session = useAuthStore(s => s.session);
   const signOut = useAuthStore(s => s.signOut);
-  
-  // V2 SYNC ENGINE: Use the new shape subscription logic
-  const { initSync, isSyncing, isOnline, syncErrors } = useSyncStore();
+  const { pullFromCloud, startBackgroundWorker, status: syncStatus } = useSyncStore();
 
   useEffect(() => {
     async function boot() {
@@ -45,10 +43,10 @@ function RootComponent() {
 
   useEffect(() => {
     if (session?.access_token && isDbReady) {
-      // Trigger the V2 HTTP Shape Stream
-      initSync().catch(console.error);
+      pullFromCloud(session.access_token).catch(console.error);
+      startBackgroundWorker();
     }
-  }, [session, isDbReady, initSync]);
+  }, [session, isDbReady, pullFromCloud, startBackgroundWorker]);
 
   if (!isDbReady) {
     return (
@@ -169,17 +167,11 @@ function RootComponent() {
               <svg className={`w-5 h-5 transition-transform ${isSidebarOpen ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
             </button>
             
-            {/* Status Indicator bound directly to V2 properties */}
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-black uppercase tracking-wider">
-              {syncErrors.length > 0 ? (
-                <><AlertTriangle size={12} className="text-rose-500" /> <span className="text-rose-600">Error</span></>
-              ) : isSyncing ? (
-                <><RefreshCw size={12} className="text-amber-500 animate-spin" /> <span className="text-amber-600">Syncing</span></>
-              ) : isOnline ? (
-                <><Wifi size={12} className="text-emerald-500" /> <span className="text-emerald-600">Live</span></>
-              ) : (
-                <><WifiOff size={12} className="text-slate-400" /> <span className="text-slate-400">Offline</span></>
-              )}
+              {syncStatus === 'connected' && <><Wifi size={12} className="text-emerald-500" /> <span className="text-emerald-600">Live</span></>}
+              {syncStatus === 'connecting' && <><RefreshCw size={12} className="text-amber-500 animate-spin" /> <span className="text-amber-600">Syncing</span></>}
+              {syncStatus === 'disconnected' && <><WifiOff size={12} className="text-slate-400" /> <span className="text-slate-400">Offline</span></>}
+              {syncStatus === 'error' && <><AlertTriangle size={12} className="text-rose-500" /> <span className="text-rose-600">Error</span></>}
             </div>
           </div>
           
@@ -205,4 +197,11 @@ function NotFoundComponent() {
       <div className="bg-slate-900 border border-slate-800 p-12 rounded-[40px] shadow-2xl max-w-sm w-full">
         <AlertTriangle size={60} className="text-rose-500 mx-auto mb-6" />
         <h1 className="text-4xl font-black text-white mb-2">404</h1>
-        <p className="text-slate-400 font-medium mb-
+        <p className="text-slate-400 font-medium mb-8">Access Denied: Module Not Found</p>
+        <Link to="/" className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-bold uppercase text-xs tracking-widest hover:bg-emerald-500 transition-all block w-full shadow-lg">
+          Return to Hub
+        </Link>
+      </div>
+    </div>
+  );
+}

@@ -2,45 +2,42 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '../../../lib/db';
 import { supabase } from '../../../lib/supabase';
 
-// 1. STRICT PAYLOAD DEFINITION (Derived exactly from v3-database schema.csv)
 export type AnimalPayload = {
-  id: string;
+  animalId: string;
   entity_type: string;
-  parent_mob_id: string | null;
+  parent_mob_id?: string | null;
   census_count: number;
-  name: string | null;
-  species: string | null;
-  latin_name: string | null;
-  category: string | null;
-  location: string | null;
-  image_url: string | null;
-  distribution_map_url: string | null;
-  hazard_rating: string | null;
+  name?: string | null;
+  species?: string | null;
+  latin_name?: string | null;
+  category?: string | null;
+  location?: string | null;
+  image_url?: string | null; 
+  distribution_map_url?: string | null; 
+  hazard_rating?: string | null;
   is_venomous: boolean;
   weight_unit: string;
-  average_target_weight: number | null;
-  date_of_birth: string | null;
+  average_target_weight?: number | null;
+  date_of_birth?: string | null;
   is_dob_unknown: boolean;
-  gender: string | null;
-  microchip_id: string | null;
-  ring_number: string | null;
-  has_no_id: boolean;
+  gender?: string | null;
+  microchip_id?: string | null;
+  ring_number?: string | null;
   red_list_status: string;
-  description: string | null;
-  special_requirements: string | null;
-  critical_husbandry_notes: string | null;
+  description?: string | null;
+  special_requirements?: string | null;
+  critical_husbandry_notes?: string | null;
   ambient_temp_only: boolean;
-  target_day_temp_c: number | null;
-  target_night_temp_c: number | null;
-  target_humidity_min_percent: number | null;
-  target_humidity_max_percent: number | null;
-  misting_frequency: string | null;
-  acquisition_date: string | null;
-  origin: string | null;
-  lineage_unknown: boolean;
+  target_day_temp_c?: number | null;
+  target_night_temp_c?: number | null;
+  target_humidity_min_percent?: number | null;
+  target_humidity_max_percent?: number | null;
+  misting_frequency?: string | null;
+  acquisition_date?: string | null;
+  origin?: string | null;
   is_boarding: boolean;
   is_quarantine: boolean;
-  created_by: string;
+  currentUserId: string;
 };
 
 export const useAddAnimal = () => {
@@ -48,68 +45,46 @@ export const useAddAnimal = () => {
 
   return useMutation({
     mutationKey: ['offline-add-animal'], 
-    onMutate: async (payload: AnimalPayload) => {
-      console.log(`📸 [API] Local Insert: ${payload.name || 'Unnamed'}`);
+    onMutate: async (val: AnimalPayload) => {
       await db.waitReady;
-      
-      try {
-        await db.query(
-          `INSERT INTO animals (
-            id, entity_type, parent_mob_id, census_count, name, species, latin_name, category, location, 
-            image_url, distribution_map_url, hazard_rating, is_venomous, weight_unit, average_target_weight, 
-            date_of_birth, is_dob_unknown, gender, microchip_id, ring_number, has_no_id, red_list_status, 
-            description, special_requirements, critical_husbandry_notes, ambient_temp_only, target_day_temp_c, 
-            target_night_temp_c, target_humidity_min_percent, target_humidity_max_percent, misting_frequency, 
-            acquisition_date, origin, lineage_unknown, is_boarding, is_quarantine, 
-            display_order, archived, is_deleted, created_by, modified_by, created_at, updated_at
-          ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, 
-            $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36,
-            0, false, false, $37, $37, now(), now()
-          ) ON CONFLICT (id) DO UPDATE SET 
-            name = EXCLUDED.name,
-            modified_by = EXCLUDED.modified_by,
-            updated_at = now()`,
-          [
-            payload.id, payload.entity_type, payload.parent_mob_id, payload.census_count, payload.name, 
-            payload.species, payload.latin_name, payload.category, payload.location, payload.image_url, 
-            payload.distribution_map_url, payload.hazard_rating, payload.is_venomous, payload.weight_unit, 
-            payload.average_target_weight, payload.date_of_birth, payload.is_dob_unknown, payload.gender, 
-            payload.microchip_id, payload.ring_number, payload.has_no_id, payload.red_list_status, 
-            payload.description, payload.special_requirements, payload.critical_husbandry_notes, 
-            payload.ambient_temp_only, payload.target_day_temp_c, payload.target_night_temp_c, 
-            payload.target_humidity_min_percent, payload.target_humidity_max_percent, payload.misting_frequency, 
-            payload.acquisition_date, payload.origin, payload.lineage_unknown, payload.is_boarding, 
-            payload.is_quarantine, payload.created_by
-          ]
-        );
-      } catch (err: any) {
-        console.error("🚨 [LOCAL PGLITE CRASH]", err);
-        throw new Error(`Local DB Error: ${err.message}`);
-      }
+      await db.query(
+        `INSERT INTO animals (
+          id, entity_type, parent_mob_id, census_count, name, species, latin_name, category, location, 
+          hazard_rating, is_venomous, weight_unit, average_target_weight, date_of_birth, is_dob_unknown, 
+          gender, microchip_id, ring_number, red_list_status, description, special_requirements, 
+          critical_husbandry_notes, ambient_temp_only, target_day_temp_c, target_night_temp_c, 
+          target_humidity_min_percent, target_humidity_max_percent, misting_frequency, acquisition_date, 
+          origin, is_boarding, is_quarantine, display_order, archived, archived_at, is_deleted, created_by, modified_by,
+          image_url, distribution_map_url
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, 
+          0, false, now(), false, $33, $33, $34, $35
+        )`,
+        [
+          val.animalId, val.entity_type, val.parent_mob_id || null, val.census_count, val.name || null, val.species || null, val.latin_name || null, val.category || null, val.location || null,
+          val.hazard_rating || null, val.is_venomous, val.weight_unit, val.average_target_weight || null, val.date_of_birth || null, val.is_dob_unknown,
+          val.gender || null, val.microchip_id || null, val.ring_number || null, val.red_list_status, val.description || null, val.special_requirements || null,
+          val.critical_husbandry_notes || null, val.ambient_temp_only, val.target_day_temp_c || null, val.target_night_temp_c || null,
+          val.target_humidity_min_percent || null, val.target_humidity_max_percent || null, val.misting_frequency || null, val.acquisition_date || null,
+          val.origin || null, val.is_boarding, val.is_quarantine, val.currentUserId, val.image_url || null, val.distribution_map_url || null
+        ]
+      );
     },
-    mutationFn: async (payload: AnimalPayload) => {
-      console.log(`☁️ [API] Supabase Upload...`);
+    mutationFn: async (val: AnimalPayload) => {
+      const { currentUserId, animalId, ...supabasePayload } = val;
       const { error } = await supabase.from('animals').insert({
-        ...payload,
-        modified_by: payload.created_by,
+        ...supabasePayload, 
+        id: animalId, 
         display_order: 0,
         archived: false,
-        is_deleted: false
+        archived_at: new Date().toISOString(),
+        is_deleted: false,
+        created_by: currentUserId, 
+        modified_by: currentUserId
       });
-      if (error) {
-        console.error("🚨 [SUPABASE CRASH]", error);
-        throw new Error(`Cloud Sync Error: ${error.message}`);
-      }
+      if (error) throw new Error(error.message);
     },
-    onError: (error) => {
-      console.error("🚨 [API] Mutation completely failed:", error.message);
-      alert(`Data Save Failed!\n\nReason: ${error.message}\n\nPlease check your console.`);
-    },
-    onSuccess: () => {
-      console.log(`✅ [API] Sync Successful`);
-      queryClient.invalidateQueries({ queryKey: ['dashboardData'] });
-    }
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dashboardData'] })
   });
 };
 
@@ -118,60 +93,37 @@ export const useUpdateAnimal = () => {
 
   return useMutation({
     mutationKey: ['offline-update-animal'], 
-    onMutate: async (payload: AnimalPayload) => {
-      console.log(`📸 [API] Local Update: ${payload.name || 'Unnamed'}`);
+    onMutate: async (val: AnimalPayload) => {
       await db.waitReady;
-      
-      try {
-        await db.query(
-          `UPDATE animals SET 
-            entity_type=$2, parent_mob_id=$3, census_count=$4, name=$5, species=$6, latin_name=$7, category=$8, location=$9, 
-            image_url=$10, distribution_map_url=$11, hazard_rating=$12, is_venomous=$13, weight_unit=$14, average_target_weight=$15, 
-            date_of_birth=$16, is_dob_unknown=$17, gender=$18, microchip_id=$19, ring_number=$20, has_no_id=$21, red_list_status=$22, 
-            description=$23, special_requirements=$24, critical_husbandry_notes=$25, ambient_temp_only=$26, target_day_temp_c=$27, 
-            target_night_temp_c=$28, target_humidity_min_percent=$29, target_humidity_max_percent=$30, misting_frequency=$31, 
-            acquisition_date=$32, origin=$33, lineage_unknown=$34, is_boarding=$35, is_quarantine=$36, modified_by=$37, updated_at=now()
-           WHERE id = $1`,
-           [
-            payload.id, payload.entity_type, payload.parent_mob_id, payload.census_count, payload.name, 
-            payload.species, payload.latin_name, payload.category, payload.location, payload.image_url, 
-            payload.distribution_map_url, payload.hazard_rating, payload.is_venomous, payload.weight_unit, 
-            payload.average_target_weight, payload.date_of_birth, payload.is_dob_unknown, payload.gender, 
-            payload.microchip_id, payload.ring_number, payload.has_no_id, payload.red_list_status, 
-            payload.description, payload.special_requirements, payload.critical_husbandry_notes, 
-            payload.ambient_temp_only, payload.target_day_temp_c, payload.target_night_temp_c, 
-            payload.target_humidity_min_percent, payload.target_humidity_max_percent, payload.misting_frequency, 
-            payload.acquisition_date, payload.origin, payload.lineage_unknown, payload.is_boarding, 
-            payload.is_quarantine, payload.created_by
+      await db.query(
+        `UPDATE animals SET 
+          entity_type=$2, parent_mob_id=$3, census_count=$4, name=$5, species=$6, latin_name=$7, category=$8, location=$9, 
+          hazard_rating=$10, is_venomous=$11, weight_unit=$12, average_target_weight=$13, date_of_birth=$14, is_dob_unknown=$15, 
+          gender=$16, microchip_id=$17, ring_number=$18, red_list_status=$19, description=$20, special_requirements=$21, 
+          critical_husbandry_notes=$22, ambient_temp_only=$23, target_day_temp_c=$24, target_night_temp_c=$25, 
+          target_humidity_min_percent=$26, target_humidity_max_percent=$27, misting_frequency=$28, acquisition_date=$29, 
+          origin=$30, is_boarding=$31, is_quarantine=$32, modified_by=$33, image_url=$34, distribution_map_url=$35, updated_at=now()
+         WHERE id = $1`,
+         [
+            val.animalId, val.entity_type, val.parent_mob_id || null, val.census_count, val.name || null, val.species || null, val.latin_name || null, val.category || null, val.location || null,
+            val.hazard_rating || null, val.is_venomous, val.weight_unit, val.average_target_weight || null, val.date_of_birth || null, val.is_dob_unknown,
+            val.gender || null, val.microchip_id || null, val.ring_number || null, val.red_list_status, val.description || null, val.special_requirements || null,
+            val.critical_husbandry_notes || null, val.ambient_temp_only, val.target_day_temp_c || null, val.target_night_temp_c || null,
+            val.target_humidity_min_percent || null, val.target_humidity_max_percent || null, val.misting_frequency || null, val.acquisition_date || null,
+            val.origin || null, val.is_boarding, val.is_quarantine, val.currentUserId, val.image_url || null, val.distribution_map_url || null
           ]
-        );
-      } catch (err: any) {
-        console.error("🚨 [LOCAL PGLITE CRASH]", err);
-        throw new Error(`Local DB Error: ${err.message}`);
-      }
+      );
     },
-    mutationFn: async (payload: AnimalPayload) => {
-      console.log(`☁️ [API] Supabase Update...`);
-      const { id, created_by, ...updateData } = payload;
+    mutationFn: async (val: AnimalPayload) => {
+      const { currentUserId, animalId, ...supabasePayload } = val;
       const { error } = await supabase.from('animals').update({
-        ...updateData,
-        modified_by: created_by,
-        updated_at: new Date().toISOString()
-      }).eq('id', id);
-      
-      if (error) {
-        console.error("🚨 [SUPABASE CRASH]", error);
-        throw new Error(`Cloud Sync Error: ${error.message}`);
-      }
-    },
-    onError: (error) => {
-      console.error("🚨 [API] Mutation completely failed:", error.message);
-      alert(`Update Failed!\n\nReason: ${error.message}`);
+        ...supabasePayload, modified_by: currentUserId, updated_at: new Date().toISOString()
+      }).eq('id', animalId);
+      if (error) throw new Error(error.message);
     },
     onSuccess: (_, variables) => {
-      console.log(`✅ [API] Update Successful`);
       queryClient.invalidateQueries({ queryKey: ['dashboardData'] });
-      queryClient.invalidateQueries({ queryKey: ['animal', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['animal', variables.animalId] });
     }
   });
 };

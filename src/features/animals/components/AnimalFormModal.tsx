@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useForm } from '@tanstack/react-form';
 import { zodValidator } from '@tanstack/zod-form-adapter';
 import { useAuthStore } from '../../../store/authStore';
-import { useAddAnimal, useUpdateAnimal } from '../api/mutations';
+import { useAddAnimal, useUpdateAnimal, AnimalPayload } from '../api/mutations';
 import { OfflineImageUploader } from './OfflineImageUploader';
 import { X, Save, Loader2, Shield, Skull, Image as ImageIcon, Map as MapIcon } from 'lucide-react';
 
@@ -32,76 +32,66 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
 
   const form = useForm({
     validatorAdapter: zodValidator,
-    defaultValues: {
-      entity_type: initialData?.entity_type || 'individual',
-      parent_mob_id: initialData?.parent_mob_id || '',
-      census_count: initialData?.census_count ? Number(initialData.census_count) : 1,
-      name: initialData?.name || '',
-      species: initialData?.species || '',
-      latin_name: initialData?.latin_name || '',
-      category: initialData?.category || '',
-      location: initialData?.location || '',
-      image_url: initialData?.image_url || '',
-      distribution_map_url: initialData?.distribution_map_url || '',
-      hazard_rating: initialData?.hazard_rating || 'LOW',
-      is_venomous: initialData?.is_venomous || false,
-      weight_unit: initialData?.weight_unit || 'g',
-      average_target_weight: initialData?.average_target_weight || '',
-      date_of_birth: initialData?.date_of_birth || '',
-      is_dob_unknown: initialData?.is_dob_unknown || false,
-      gender: initialData?.gender || 'Unknown',
-      microchip_id: initialData?.microchip_id || '',
-      ring_number: initialData?.ring_number || '',
-      red_list_status: initialData?.red_list_status || 'NE',
-      description: initialData?.description || '',
-      special_requirements: initialData?.special_requirements || '',
-      critical_husbandry_notes: initialData?.critical_husbandry_notes || '',
-      ambient_temp_only: initialData?.ambient_temp_only || false,
-      target_day_temp_c: initialData?.target_day_temp_c || '',
-      target_night_temp_c: initialData?.target_night_temp_c || '',
-      target_humidity_min_percent: initialData?.target_humidity_min_percent || '',
-      target_humidity_max_percent: initialData?.target_humidity_max_percent || '',
-      misting_frequency: initialData?.misting_frequency || '',
-      acquisition_date: initialData?.acquisition_date || '',
-      origin: initialData?.origin || '',
-      is_boarding: initialData?.is_boarding || false,
-      is_quarantine: initialData?.is_quarantine || false,
-    },
+    defaultValues: initialData || {}, // Raw data comes in
     onSubmit: async ({ value }) => {
-      const parseStr = (v: any) => v === '' ? null : String(v);
-      const parseNum = (v: any) => v === '' || v === null ? null : Number(v);
+      
+      // ==========================================
+      // THE SCRUBBER (Data Transfer Object)
+      // Converts raw form state into strict DB Schema
+      // ==========================================
+      const parseStr = (v: any) => (v === '' || v === undefined || v === null) ? null : String(v);
+      const parseNum = (v: any) => (v === '' || v === undefined || v === null) ? null : Number(v);
 
-      const payload = {
-        ...value,
+      const scrubbedPayload: AnimalPayload = {
+        id: isEditing ? initialData.id : crypto.randomUUID(),
+        created_by: currentUserId,
+
+        // NOT NULL Strings & Integers
+        entity_type: parseStr(value.entity_type) || 'individual',
+        census_count: parseNum(value.census_count) || 1,
+        weight_unit: parseStr(value.weight_unit) || 'g',
+        red_list_status: parseStr(value.red_list_status) || 'NE',
+        gender: parseStr(value.gender) || 'Unknown',
+
+        // NOT NULL Booleans (Strict False Fallbacks)
+        is_venomous: Boolean(value.is_venomous),
+        is_dob_unknown: Boolean(value.is_dob_unknown),
+        has_no_id: Boolean(value.has_no_id),
+        ambient_temp_only: Boolean(value.ambient_temp_only),
+        lineage_unknown: Boolean(value.lineage_unknown),
+        is_boarding: Boolean(value.is_boarding),
+        is_quarantine: Boolean(value.is_quarantine),
+
+        // NULLABLE Fields (Must pass actual null, not empty strings)
         parent_mob_id: parseStr(value.parent_mob_id),
         name: parseStr(value.name),
         species: parseStr(value.species),
         latin_name: parseStr(value.latin_name),
         category: parseStr(value.category),
         location: parseStr(value.location),
-        origin: parseStr(value.origin),
-        acquisition_date: parseStr(value.acquisition_date),
         image_url: parseStr(value.image_url),
         distribution_map_url: parseStr(value.distribution_map_url),
         hazard_rating: parseStr(value.hazard_rating),
         average_target_weight: parseNum(value.average_target_weight),
+        date_of_birth: parseStr(value.date_of_birth),
+        microchip_id: parseStr(value.microchip_id),
+        ring_number: parseStr(value.ring_number),
+        description: parseStr(value.description),
+        special_requirements: parseStr(value.special_requirements),
+        critical_husbandry_notes: parseStr(value.critical_husbandry_notes),
         target_day_temp_c: parseNum(value.target_day_temp_c),
         target_night_temp_c: parseNum(value.target_night_temp_c),
         target_humidity_min_percent: parseNum(value.target_humidity_min_percent),
         target_humidity_max_percent: parseNum(value.target_humidity_max_percent),
-        // Guaranteed boolean fallback casting
-        is_venomous: !!value.is_venomous,
-        is_dob_unknown: !!value.is_dob_unknown,
-        is_boarding: !!value.is_boarding,
-        is_quarantine: !!value.is_quarantine,
-        ambient_temp_only: !!value.ambient_temp_only,
-        currentUserId
+        misting_frequency: parseStr(value.misting_frequency),
+        acquisition_date: parseStr(value.acquisition_date),
+        origin: parseStr(value.origin),
       };
 
       if (isEditing) {
-        updateAnimal.mutate({ ...payload, animalId: initialData.id } as any);
+        updateAnimal.mutate(scrubbedPayload);
       } else {
-        addAnimal.mutate({ ...payload, animalId: crypto.randomUUID() } as any);
+        addAnimal.mutate(scrubbedPayload);
       }
       onClose();
     }
@@ -142,38 +132,38 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
             {activeTab === 'basic' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <form.Field name="name" children={(f) => (
-                  <div><label className={labelClass}>Name / Identifier</label><input value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} placeholder="e.g. Barnaby" /></div>
+                  <div><label className={labelClass}>Name / Identifier</label><input value={f.state.value || ''} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} placeholder="e.g. Barnaby" /></div>
                 )} />
                 <form.Field name="category" children={(f) => (
-                  <div><label className={labelClass}>Category</label><select value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass}><option value="">Select...</option>{CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                  <div><label className={labelClass}>Category</label><select value={f.state.value || ''} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass}><option value="">Select...</option>{CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
                 )} />
                 <form.Field name="species" children={(f) => (
-                  <div><label className={labelClass}>Common Species</label><input value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} placeholder="e.g. Barn Owl" /></div>
+                  <div><label className={labelClass}>Common Species</label><input value={f.state.value || ''} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} placeholder="e.g. Barn Owl" /></div>
                 )} />
                 <form.Field name="latin_name" children={(f) => (
-                  <div><label className={labelClass}>Latin Name</label><input value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={`${inputClass} italic`} placeholder="e.g. Tyto alba" /></div>
+                  <div><label className={labelClass}>Latin Name</label><input value={f.state.value || ''} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={`${inputClass} italic`} placeholder="e.g. Tyto alba" /></div>
                 )} />
                 <form.Field name="location" children={(f) => (
-                  <div><label className={labelClass}>Enclosure / Location</label><input value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} placeholder="e.g. Block A, Aviary 4" /></div>
+                  <div><label className={labelClass}>Enclosure / Location</label><input value={f.state.value || ''} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} placeholder="e.g. Block A, Aviary 4" /></div>
                 )} />
                 <form.Field name="origin" children={(f) => (
-                  <div><label className={labelClass}>Origin / Source</label><input value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
+                  <div><label className={labelClass}>Origin / Source</label><input value={f.state.value || ''} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
                 )} />
                 
                 <form.Field name="entity_type" children={(f) => (
                   <div>
                     <label className={labelClass}>Entity Type</label>
-                    <select disabled={isEditing} value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass}>
+                    <select disabled={isEditing} value={f.state.value || 'individual'} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass}>
                       <option value="individual">Individual</option>
                       <option value="group">Group / Mob</option>
                     </select>
                   </div>
                 )} />
                 <form.Field name="census_count" children={(f) => (
-                  <div><label className={labelClass}>Census Count</label><input type="number" min="1" value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(Number(e.target.value))} className={inputClass} /></div>
+                  <div><label className={labelClass}>Census Count</label><input type="number" min="1" value={f.state.value || 1} onBlur={f.handleBlur} onChange={e => f.handleChange(Number(e.target.value))} className={inputClass} /></div>
                 )} />
                 <form.Field name="acquisition_date" children={(f) => (
-                  <div className="md:col-span-2"><label className={labelClass}>Acquisition Date</label><input type="date" value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
+                  <div className="md:col-span-2"><label className={labelClass}>Acquisition Date</label><input type="date" value={f.state.value || ''} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
                 )} />
               </div>
             )}
@@ -181,30 +171,29 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
             {activeTab === 'id' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <form.Field name="gender" children={(f) => (
-                  <div><label className={labelClass}>Gender</label><select value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass}><option value="Unknown">Unknown</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
+                  <div><label className={labelClass}>Gender</label><select value={f.state.value || 'Unknown'} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass}><option value="Unknown">Unknown</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
                 )} />
                 <div className="flex gap-2">
                   <form.Field name="date_of_birth" children={(f) => (
-                    <div className="flex-1"><label className={labelClass}>Date of Birth</label><input type="date" disabled={form.getFieldValue('is_dob_unknown')} value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
+                    <div className="flex-1"><label className={labelClass}>Date of Birth</label><input type="date" disabled={form.getFieldValue('is_dob_unknown')} value={f.state.value || ''} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
                   )} />
                   <form.Field name="is_dob_unknown" children={(f) => (
                     <div className="flex items-center gap-2 pt-5"><input type="checkbox" checked={!!f.state.value} onChange={e => f.handleChange(e.target.checked)} /><span className="text-[10px] font-bold text-slate-500 uppercase">Unknown</span></div>
                   )} />
                 </div>
                 <form.Field name="microchip_id" children={(f) => (
-                  <div><label className={labelClass}>Microchip ID</label><input value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={`${inputClass} font-mono`} /></div>
+                  <div><label className={labelClass}>Microchip ID</label><input value={f.state.value || ''} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={`${inputClass} font-mono`} /></div>
                 )} />
                 <form.Field name="ring_number" children={(f) => (
-                  <div><label className={labelClass}>Ring/Band Number</label><input value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={`${inputClass} font-mono`} /></div>
+                  <div><label className={labelClass}>Ring/Band Number</label><input value={f.state.value || ''} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={`${inputClass} font-mono`} /></div>
                 )} />
                 <form.Field name="red_list_status" children={(f) => (
-                  <div><label className={labelClass}>IUCN Status</label><select value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass}>{RED_LIST_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+                  <div><label className={labelClass}>IUCN Status</label><select value={f.state.value || 'NE'} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass}>{RED_LIST_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
                 )} />
                 <form.Field name="hazard_rating" children={(f) => (
-                  <div><label className={labelClass}>Hazard Rating</label><select value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass}>{HAZARD_RATINGS.map(h => <option key={h} value={h}>{h}</option>)}</select></div>
+                  <div><label className={labelClass}>Hazard Rating</label><select value={f.state.value || 'LOW'} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass}>{HAZARD_RATINGS.map(h => <option key={h} value={h}>{h}</option>)}</select></div>
                 )} />
                 
-                {/* Restored Checkboxes! */}
                 <div className="col-span-1 md:col-span-2 flex flex-wrap gap-4 mt-2">
                   <form.Field name="is_venomous" children={(f) => (
                     <label className="flex items-center gap-2 cursor-pointer bg-red-50 px-4 py-2 rounded-xl border border-red-200 text-red-700 font-bold text-[10px] uppercase tracking-widest"><input type="checkbox" checked={!!f.state.value} onChange={e => f.handleChange(e.target.checked)} /><Skull size={14}/> Venomous</label>
@@ -222,27 +211,27 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
             {activeTab === 'biometrics' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <form.Field name="average_target_weight" children={(f) => (
-                  <div><label className={labelClass}>Target Weight Value</label><input type="number" step="0.01" value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
+                  <div><label className={labelClass}>Target Weight Value</label><input type="number" step="0.01" value={f.state.value || ''} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
                 )} />
                 <form.Field name="weight_unit" children={(f) => (
                   <div>
                     <label className={labelClass}>Weight Unit System</label>
-                    <select value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass}>
+                    <select value={f.state.value || 'g'} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass}>
                       {WEIGHT_UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
                     </select>
                   </div>
                 )} />
                 <form.Field name="target_day_temp_c" children={(f) => (
-                  <div><label className={labelClass}>Target Day Temp (°C)</label><input type="number" step="0.1" value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
+                  <div><label className={labelClass}>Target Day Temp (°C)</label><input type="number" step="0.1" value={f.state.value || ''} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
                 )} />
                 <form.Field name="target_night_temp_c" children={(f) => (
-                  <div><label className={labelClass}>Target Night Temp (°C)</label><input type="number" step="0.1" value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
+                  <div><label className={labelClass}>Target Night Temp (°C)</label><input type="number" step="0.1" value={f.state.value || ''} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
                 )} />
                 <form.Field name="target_humidity_min_percent" children={(f) => (
-                  <div><label className={labelClass}>Min Humidity (%)</label><input type="number" value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
+                  <div><label className={labelClass}>Min Humidity (%)</label><input type="number" value={f.state.value || ''} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
                 )} />
                 <form.Field name="target_humidity_max_percent" children={(f) => (
-                  <div><label className={labelClass}>Max Humidity (%)</label><input type="number" value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
+                  <div><label className={labelClass}>Max Humidity (%)</label><input type="number" value={f.state.value || ''} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={inputClass} /></div>
                 )} />
                 <form.Field name="ambient_temp_only" children={(f) => (
                   <div className="col-span-1 md:col-span-2 flex items-center gap-2 pt-2"><input type="checkbox" checked={!!f.state.value} onChange={e => f.handleChange(e.target.checked)} /><span className="text-xs font-bold text-slate-700">Ambient Temperature Only (No active heating)</span></div>
@@ -264,10 +253,10 @@ export function AnimalFormModal({ isOpen, onClose, initialData }: AnimalFormModa
             {activeTab === 'notes' && (
               <div className="grid grid-cols-1 gap-4">
                 <form.Field name="description" children={(f) => (
-                  <div><label className={labelClass}>General Description</label><textarea value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={`${inputClass} min-h-[100px] resize-none py-4`} /></div>
+                  <div><label className={labelClass}>General Description</label><textarea value={f.state.value || ''} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={`${inputClass} min-h-[100px] resize-none py-4`} /></div>
                 )} />
                 <form.Field name="critical_husbandry_notes" children={(f) => (
-                  <div><label className={`${labelClass} text-rose-600`}>Critical Husbandry Alerts</label><textarea value={f.state.value} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={`${inputClass} min-h-[100px] resize-none py-4 border-rose-200 bg-rose-50/50`} /></div>
+                  <div><label className={`${labelClass} text-rose-600`}>Critical Husbandry Alerts</label><textarea value={f.state.value || ''} onBlur={f.handleBlur} onChange={e => f.handleChange(e.target.value)} className={`${inputClass} min-h-[100px] resize-none py-4 border-rose-200 bg-rose-50/50`} /></div>
                 )} />
               </div>
             )}
